@@ -7,6 +7,14 @@ const ChatContext = createContext();
 
 export const useChat = () => useContext(ChatContext);
 
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' }
+  ]
+};
+
 export const ChatProvider = ({ children, initialUserId = null }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
@@ -20,6 +28,13 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   const [activeTab, setActiveTab] = useState('chats'); // 'chats' | 'friends' | 'requests'
   const [loading, setLoading] = useState(true);
   const [statusNotification, setStatusNotification] = useState(null);
+
+  // WebRTC Voice Call States
+  const [callState, setCallState] = useState('idle'); // 'idle' | 'outgoing' | 'incoming' | 'connected'
+  const [activeCall, setActiveCall] = useState(null); // { callId, peerId, contactName, contactAvatar, isCaller }
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [callDuration, setCallDuration] = useState('00:00');
 
   const [statusFeed, setStatusFeed] = useState({ myStatuses: [], friendsStatuses: [] });
   const [chatWallpaper, setChatWallpaperState] = useState(() => {
@@ -50,12 +65,246 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   const typingTimeoutRef = useRef(null);
   const incomingTypingTimers = useRef({});
 
+  // WebRTC Refs
+  const peerConnectionRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const remoteAudioRef = useRef(null);
+  const callTimerRef = useRef(null);
+  const callStartTimeRef = useRef(null);
+  const callStateRef = useRef('idle');
+  callStateRef.current = callState;
+  const activeCallRef = useRef(activeCall);
+  activeCallRef.current = activeCall;
+
   // Show quick toast notification
   const showToast = (message, type = 'info') => {
     setStatusNotification({ message, type, id: Date.now() });
     setTimeout(() => {
       setStatusNotification(null);
     }, 4000);
+  };
+
+  // WebRTC Timer & Cleanup helpers
+  const startCallTimer = () => {
+    if (callTimerRef.current) clearInterval(callTimerRef.current);
+    callStartTimeRef.current = Date.now();
+    setCallDuration('00:00');
+
+    callTimerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      setCallDuration(`${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`);
+    }, 1000);
+  };
+
+  const stopCallTimer = () => {
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+    setCallDuration('00:00');
+  };
+
+  const cleanupCall = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+    stopCallTimer();
+    setCallState('idle');
+    callStateRef.current = 'idle';
+    setActiveCall(null);
+    activeCallRef.current = null;
+    setIsMuted(false);
+  }, []);
+
+  const createPeerConnection = (targetPeerId) => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    peerConnectionRef.current = pc;
+
+    // Send local tracks
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    }
+
+    // Handle remote track
+    pc.ontrack = (event) => {
+      console.log('[WebRTC] Received remote audio stream track:', event.streams[0]);
+      if (remoteAudioRef.current && event.streams && event.streams[0]) {
+        remoteAudioRef.current.srcObject = event.streams[0];
+        remoteAudioRef.current.play().catch((err) => {
+          console.warn('[WebRTC] Audio auto-play note:', err);
+        });
+      }
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socketRef.current && currentUserRef.current) {
+        const dest = targetPeerId || activeCallRef.current?.peerId;
+        if (dest) {
+          socketRef.current.emit('webrtc:ice_candidate', {
+            toUserId: dest,
+            fromUserId: currentUserRef.current.id,
+            candidate: event.candidate
+          });
+        }
+      }
+    };
+
+    return pc;
+  };
+
+  // Start outgoing voice call
+  const startVoiceCall = async (friend) => {
+    if (!currentUser || !friend) return;
+    if (callStateRef.current !== 'idle') {
+      showToast('A call is already in progress', 'info');
+      return;
+    }
+
+    try {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (err) {
+        console.error('Microphone access error:', err);
+        showToast('Microphone access is required for voice calling', 'error');
+        return;
+      }
+
+      localStreamRef.current = stream;
+
+      const callInfo = {
+        callId: `call_${Date.now()}`,
+        peerId: friend.id,
+        contactName: friend.name,
+        contactAvatar: friend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${friend.username}`,
+        isCaller: true
+      };
+
+      setActiveCall(callInfo);
+      activeCallRef.current = callInfo;
+      setCallState('outgoing');
+      callStateRef.current = 'outgoing';
+
+      const socket = socketRef.current;
+      if (socket && socket.connected) {
+        socket.emit('call:initiate', {
+          toUserId: friend.id,
+          callerId: currentUser.id,
+          callerName: currentUser.name,
+          callerAvatar: currentUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.username}`,
+          isVideo: false
+        });
+      }
+    } catch (err) {
+      console.error('Error starting voice call:', err);
+      showToast('Failed to start voice call', 'error');
+      cleanupCall();
+    }
+  };
+
+  // Accept incoming call
+  const acceptVoiceCall = async () => {
+    const currentCall = activeCallRef.current;
+    if (!currentUser || !currentCall) return;
+
+    try {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (err) {
+        console.error('Microphone access error:', err);
+        showToast('Microphone access is required to accept the call', 'error');
+        rejectVoiceCall();
+        return;
+      }
+
+      localStreamRef.current = stream;
+      createPeerConnection(currentCall.peerId);
+
+      setCallState('connected');
+      callStateRef.current = 'connected';
+      startCallTimer();
+
+      const socket = socketRef.current;
+      if (socket && socket.connected) {
+        socket.emit('call:accept', {
+          callerId: currentCall.peerId,
+          receiverId: currentUser.id,
+          receiverName: currentUser.name
+        });
+      }
+    } catch (err) {
+      console.error('Error accepting call:', err);
+      showToast('Failed to accept call', 'error');
+      cleanupCall();
+    }
+  };
+
+  // Reject incoming call
+  const rejectVoiceCall = () => {
+    const currentCall = activeCallRef.current;
+    const socket = socketRef.current;
+    if (currentCall && socket && socket.connected && currentUser) {
+      socket.emit('call:reject', {
+        callerId: currentCall.peerId,
+        receiverId: currentUser.id,
+        reason: 'Call declined'
+      });
+    }
+    cleanupCall();
+  };
+
+  // End active call
+  const endVoiceCall = () => {
+    const currentCall = activeCallRef.current;
+    const socket = socketRef.current;
+    if (currentCall && socket && socket.connected && currentUser) {
+      socket.emit('call:end', {
+        toUserId: currentCall.peerId,
+        fromUserId: currentUser.id
+      });
+    }
+    cleanupCall();
+    showToast('Call ended', 'info');
+  };
+
+  // Toggle Microphone Mute
+  const toggleMute = () => {
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const nextMuted = !isMuted;
+        audioTracks.forEach((track) => {
+          track.enabled = !nextMuted;
+        });
+        setIsMuted(nextMuted);
+      }
+    } else {
+      setIsMuted((prev) => !prev);
+    }
+  };
+
+  // Toggle Speaker Output
+  const toggleSpeaker = () => {
+    setIsSpeakerOn((prev) => !prev);
   };
 
   // Fetch status feed
@@ -117,20 +366,25 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     socket.off('message:edited');
     socket.off('message:deleted_everyone');
     socket.off('message:deleted_for_me');
+    socket.off('call:incoming');
+    socket.off('call:accepted');
+    socket.off('call:rejected');
+    socket.off('call:ended');
+    socket.off('webrtc:offer');
+    socket.off('webrtc:answer');
+    socket.off('webrtc:ice_candidate');
 
     // 1. Incoming new message
     socket.on('message:receive', (newMsg) => {
       console.log('[Socket] message:receive:', newMsg);
       const active = activeFriendRef.current;
 
-      // If active conversation with sender, append message and mark as read
       if (active && (newMsg.sender_id === active.id || newMsg.receiver_id === active.id)) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
 
-        // Mark as read immediately
         if (newMsg.sender_id === active.id) {
           socket.emit('messages:mark_read', {
             readerId: userId,
@@ -144,7 +398,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       refreshData(userId);
     });
 
-    // 2. Message status update (e.g. sent -> delivered)
+    // 2. Message status update
     socket.on('message:status_update', (update) => {
       setMessages((prev) =>
         prev.map((msg) =>
@@ -161,7 +415,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       );
     });
 
-    // 4. Message Read Receipt (Double blue tick)
+    // 4. Message Read Receipt
     socket.on('messages:read_receipt', ({ readerId, readAt }) => {
       const active = activeFriendRef.current;
       if (active && active.id === readerId) {
@@ -176,7 +430,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       refreshData(userId);
     });
 
-    // 5. User presence update (online / offline)
+    // 5. User presence update
     socket.on('user:presence', ({ userId: changedId, is_online, last_seen }) => {
       setFriends((prev) =>
         prev.map((f) => (f.id === changedId ? { ...f, is_online, last_seen } : f))
@@ -191,11 +445,10 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       }
     });
 
-    // 6. Typing indicators with auto-cleanup
+    // 6. Typing indicators
     socket.on('typing:started', ({ senderId, senderName }) => {
       setTypingMap((prev) => ({ ...prev, [senderId]: true }));
 
-      // Auto-clear typing indicator after 3.5 seconds if sender pauses
       if (incomingTypingTimers.current[senderId]) {
         clearTimeout(incomingTypingTimers.current[senderId]);
       }
@@ -246,7 +499,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     });
 
     // 9. Disappearing Message Expired
-    socket.on('message:expired', ({ messageId, friendId }) => {
+    socket.on('message:expired', ({ messageId }) => {
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
     });
 
@@ -313,11 +566,131 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     socket.on('message:deleted_for_me', ({ messageId }) => {
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     });
+
+    // ==========================================
+    // WebRTC Voice Calling Socket Handlers
+    // ==========================================
+
+    // 16. Incoming Call
+    socket.on('call:incoming', ({ callerId, callerName, callerAvatar }) => {
+      console.log('[Socket] Incoming call from:', callerName, callerId);
+      if (callStateRef.current !== 'idle') {
+        socket.emit('call:reject', {
+          callerId,
+          receiverId: userId,
+          reason: 'User is busy on another call'
+        });
+        return;
+      }
+
+      const callInfo = {
+        callId: `call_${Date.now()}`,
+        peerId: callerId,
+        contactName: callerName || 'WhatsApp Friend',
+        contactAvatar: callerAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${callerId}`,
+        isCaller: false
+      };
+
+      setActiveCall(callInfo);
+      activeCallRef.current = callInfo;
+      setCallState('incoming');
+      callStateRef.current = 'incoming';
+    });
+
+    // 17. Call Accepted by Receiver (Caller side)
+    socket.on('call:accepted', async ({ receiverId, receiverName }) => {
+      console.log('[Socket] Call accepted by:', receiverName || receiverId);
+      if (callStateRef.current !== 'outgoing') return;
+
+      setCallState('connected');
+      callStateRef.current = 'connected';
+      startCallTimer();
+
+      try {
+        const pc = createPeerConnection(receiverId);
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
+        await pc.setLocalDescription(offer);
+
+        socket.emit('webrtc:offer', {
+          toUserId: receiverId,
+          fromUserId: userId,
+          offer
+        });
+      } catch (err) {
+        console.error('[WebRTC] Failed to create SDP offer:', err);
+        showToast('WebRTC connection failed', 'error');
+        cleanupCall();
+      }
+    });
+
+    // 18. Call Rejected
+    socket.on('call:rejected', ({ reason }) => {
+      console.log('[Socket] Call rejected:', reason);
+      showToast(reason || 'Call was declined', 'info');
+      cleanupCall();
+    });
+
+    // 19. Call Ended by Remote Peer
+    socket.on('call:ended', () => {
+      console.log('[Socket] Remote peer ended call');
+      showToast('Call ended by other user', 'info');
+      cleanupCall();
+    });
+
+    // 20. WebRTC SDP Offer Received (Receiver side)
+    socket.on('webrtc:offer', async ({ fromUserId, offer }) => {
+      console.log('[Socket] Received WebRTC offer from:', fromUserId);
+      try {
+        let pc = peerConnectionRef.current;
+        if (!pc) {
+          pc = createPeerConnection(fromUserId);
+        }
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        socket.emit('webrtc:answer', {
+          toUserId: fromUserId,
+          fromUserId: userId,
+          answer
+        });
+      } catch (err) {
+        console.error('[WebRTC] Failed to handle SDP offer & send answer:', err);
+      }
+    });
+
+    // 21. WebRTC SDP Answer Received (Caller side)
+    socket.on('webrtc:answer', async ({ fromUserId, answer }) => {
+      console.log('[Socket] Received WebRTC answer from:', fromUserId);
+      try {
+        if (peerConnectionRef.current) {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+      } catch (err) {
+        console.error('[WebRTC] Failed to set remote description answer:', err);
+      }
+    });
+
+    // 22. WebRTC ICE Candidate Received
+    socket.on('webrtc:ice_candidate', async ({ fromUserId, candidate }) => {
+      try {
+        if (peerConnectionRef.current && candidate) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      } catch (err) {
+        console.error('[WebRTC] Error adding ICE candidate:', err);
+      }
+    });
   };
 
   // Login or select user
   const selectUser = async (user) => {
     setLoading(true);
+    cleanupCall();
     setCurrentUser(user);
     currentUserRef.current = user;
     setActiveFriend(null);
@@ -362,11 +735,12 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     init();
 
     return () => {
+      cleanupCall();
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
-  }, [initialUserId]);
+  }, [initialUserId, cleanupCall]);
 
   // Load chat history when active friend is clicked
   const openChatWithFriend = async (friend) => {
@@ -576,7 +950,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     if (!currentUser || !messageId) return;
     try {
       await api.deleteForMe(messageId, currentUser.id);
-      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       showToast('Message deleted for you', 'info');
     } catch (err) {
       console.error('Error deleting for me:', err);
@@ -694,6 +1068,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   // Log Out of Account
   const logout = () => {
     localStorage.removeItem('whatsapp_active_user_id');
+    cleanupCall();
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
@@ -781,7 +1156,20 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         deleteStatusItem,
         refreshStatuses: () => refreshStatuses(currentUser?.id),
         refreshData: () => refreshData(currentUser?.id),
-        showToast
+        showToast,
+        // WebRTC Voice Calling exports
+        callState,
+        activeCall,
+        callDuration,
+        isMuted,
+        isSpeakerOn,
+        startVoiceCall,
+        acceptVoiceCall,
+        rejectVoiceCall,
+        endVoiceCall,
+        toggleMute,
+        toggleSpeaker,
+        remoteAudioRef
       }}
     >
       {children}

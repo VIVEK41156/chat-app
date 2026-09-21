@@ -191,6 +191,103 @@ export const initSocket = (server) => {
       }
     });
 
+    // ==========================================
+    // WebRTC Real-Time Voice Calling Signaling
+    // ==========================================
+
+    // 1. Initiate Call
+    socket.on('call:initiate', (data) => {
+      const { toUserId, callerId, callerName, callerAvatar, isVideo = false } = data;
+      console.log(`[Call] Initiate from ${callerName} (${callerId}) to ${toUserId}`);
+
+      if (!toUserId || !callerId) return;
+
+      const isReceiverOnline = onlineUsers.has(toUserId) && onlineUsers.get(toUserId).size > 0;
+      if (!isReceiverOnline) {
+        socket.emit('call:rejected', {
+          reason: 'User is currently offline',
+          toUserId
+        });
+        return;
+      }
+
+      io.to(toUserId).emit('call:incoming', {
+        callerId,
+        callerName,
+        callerAvatar,
+        isVideo
+      });
+    });
+
+    // 2. Accept Call
+    socket.on('call:accept', (data) => {
+      const { callerId, receiverId, receiverName } = data;
+      console.log(`[Call] Accepted by ${receiverName || receiverId} for caller ${callerId}`);
+      if (callerId) {
+        io.to(callerId).emit('call:accepted', {
+          receiverId,
+          receiverName
+        });
+      }
+    });
+
+    // 3. Reject Call
+    socket.on('call:reject', (data) => {
+      const { callerId, receiverId, reason = 'Call declined' } = data;
+      console.log(`[Call] Rejected by ${receiverId} for caller ${callerId}`);
+      if (callerId) {
+        io.to(callerId).emit('call:rejected', {
+          receiverId,
+          reason
+        });
+      }
+    });
+
+    // 4. End Call
+    socket.on('call:end', (data) => {
+      const { toUserId, fromUserId, duration = 0 } = data;
+      console.log(`[Call] Ended between ${fromUserId} and ${toUserId}`);
+      if (toUserId) {
+        io.to(toUserId).emit('call:ended', {
+          fromUserId,
+          duration
+        });
+      }
+    });
+
+    // 5. WebRTC SDP Offer Relay
+    socket.on('webrtc:offer', (data) => {
+      const { toUserId, fromUserId, offer } = data;
+      if (toUserId && offer) {
+        io.to(toUserId).emit('webrtc:offer', {
+          fromUserId,
+          offer
+        });
+      }
+    });
+
+    // 6. WebRTC SDP Answer Relay
+    socket.on('webrtc:answer', (data) => {
+      const { toUserId, fromUserId, answer } = data;
+      if (toUserId && answer) {
+        io.to(toUserId).emit('webrtc:answer', {
+          fromUserId,
+          answer
+        });
+      }
+    });
+
+    // 7. WebRTC ICE Candidate Relay
+    socket.on('webrtc:ice_candidate', (data) => {
+      const { toUserId, fromUserId, candidate } = data;
+      if (toUserId && candidate) {
+        io.to(toUserId).emit('webrtc:ice_candidate', {
+          fromUserId,
+          candidate
+        });
+      }
+    });
+
     // Disconnect handling
     socket.on('disconnect', async () => {
       console.log(`[Socket] Client disconnected: ${socket.id} (User: ${currentUserId || 'unknown'})`);

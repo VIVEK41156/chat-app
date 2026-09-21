@@ -5,6 +5,7 @@ import { ChatArea } from './components/ChatArea';
 import { FriendsTab } from './components/FriendsTab';
 import { UserSwitcherModal } from './components/UserSwitcherModal';
 import { ProfileSettingsModal } from './components/ProfileSettingsModal';
+import { VoiceCallModal } from './components/VoiceCallModal';
 import { DualSimulator } from './components/DualSimulator';
 import {
   SplitSquareVertical,
@@ -176,6 +177,9 @@ const MainLayout = ({ onToggleSimulator }) => {
         onClose={() => setProfileModalOpen(false)}
         onOpenAuthModal={() => setAuthModalOpen(true)}
       />
+
+      {/* WebRTC Real-Time Voice Call Modal */}
+      <VoiceCallModal />
 
       {/* Real-time Toast Banner */}
       {statusNotification && (

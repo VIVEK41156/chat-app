@@ -68,7 +68,8 @@ export const ChatArea = () => {
     typingMap,
     showToast,
     setActiveFriend,
-    chatWallpaper
+    chatWallpaper,
+    startVoiceCall
   } = useChat();
 
   const [inputText, setInputText] = useState('');
@@ -421,8 +422,8 @@ export const ChatArea = () => {
 
         <div className="flex items-center gap-1 text-[#aebac1] relative" ref={moreMenuRef}>
           <button
-            onClick={() => showToast('Voice calling demo feature', 'info')}
-            className="p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition"
+            onClick={() => startVoiceCall(activeFriend)}
+            className="p-2 rounded-full hover:bg-[#374248] text-[#00a884] hover:text-[#25D366] transition"
             title="Start voice call"
           >
             <Phone size={18} />

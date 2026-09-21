@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { ChatArea } from './ChatArea';
 import { FriendsTab } from './FriendsTab';
 import { UserSwitcherModal } from './UserSwitcherModal';
+import { VoiceCallModal } from './VoiceCallModal';
 import { Smartphone, SplitSquareVertical, CheckCircle2 } from 'lucide-react';
 
 const SingleChatInstance = ({ title, defaultUserId, onOpenModal }) => {
@@ -43,6 +44,9 @@ const SingleChatInstance = ({ title, defaultUserId, onOpenModal }) => {
           )}
         </div>
       </div>
+
+      {/* WebRTC Real-Time Voice Call Modal */}
+      <VoiceCallModal />
 
       {/* Floating toast */}
       {statusNotification && (

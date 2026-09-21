@@ -236,9 +236,9 @@ router.post('/respond', async (req, res) => {
       return res.status(404).json({ error: 'Friend request not found.' });
     }
 
-    // Must be the receiver responding to the request
-    if (request.receiver_id !== user_id) {
-      return res.status(403).json({ error: 'Only the recipient of this request can accept or reject it.' });
+    // Either sender or receiver can accept the friendship (Instant Connect)
+    if (request.receiver_id !== user_id && request.sender_id !== user_id) {
+      return res.status(403).json({ error: 'You are not part of this friend request.' });
     }
 
     const newStatus = action === 'accept' ? 'accepted' : 'rejected';

@@ -351,9 +351,13 @@ export const FriendsTab = () => {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                      <span className="text-[11px] text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-md flex items-center gap-1 font-medium border border-yellow-400/20">
-                        <Clock size={12} /> Pending...
-                      </span>
+                      <button
+                        onClick={() => respondFriendRequest(req.id, 'accept')}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold rounded-lg transition shadow"
+                        title="Accept & Connect instantly to start chatting"
+                      >
+                        <Check size={14} /> Accept & Connect
+                      </button>
                       <button
                         onClick={() => cancelFriendRequest(req.id)}
                         className="p-1.5 bg-[#182229] hover:bg-red-500/20 text-[#8696a0] hover:text-red-400 rounded-lg transition text-xs flex items-center gap-1 border border-[#2a3942]"
@@ -450,12 +454,16 @@ export const FriendsTab = () => {
                         </div>
                       ) : isPendingSent ? (
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 text-[11px] text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-2 py-1 rounded-md font-medium">
-                            <Clock size={12} /> Pending
-                          </span>
+                          <button
+                            onClick={() => respondFriendRequest(user.requestId, 'accept')}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold rounded-lg transition shadow"
+                            title="Accept & Connect"
+                          >
+                            <Check size={13} /> Accept & Connect
+                          </button>
                           <button
                             onClick={() => cancelFriendRequest(user.requestId)}
-                            className="p-1 text-[#8696a0] hover:text-red-400 hover:bg-red-500/10 rounded transition text-[11px]"
+                            className="p-1.5 text-[#8696a0] hover:text-red-400 hover:bg-red-500/10 rounded transition text-xs"
                             title="Cancel request"
                           >
                             <X size={14} />

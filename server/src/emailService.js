@@ -85,11 +85,16 @@ export const sendOtpEmail = async (toEmail, otpCode, name = 'User') => {
     try {
       const fromAddr = activeGmailUser || 'vivekparri41156@gmail.com';
       const info = await transporter.sendMail({
-        from: `"WhatsApp Security" <${fromAddr}>`,
+        from: `"WhatsApp Web" <${fromAddr}>`,
+        replyTo: fromAddr,
         to: toEmail,
-        subject: `${otpCode} is your WhatsApp verification code`,
-        text: `Your WhatsApp verification code is: ${otpCode}. It expires in 5 minutes.`,
-        html: htmlContent
+        subject: `Your WhatsApp Verification Code: ${otpCode}`,
+        text: `Hello ${name},\n\nYour WhatsApp verification code is: ${otpCode}\n\nThis code is valid for 5 minutes. Do not share it with anyone.`,
+        html: htmlContent,
+        headers: {
+          'X-Priority': '1',
+          'Importance': 'high'
+        }
       });
       console.log(`[Email] OTP email successfully sent to ${toEmail}. Message ID: ${info.messageId}`);
       return { success: true, messageId: info.messageId };

@@ -81,7 +81,8 @@ router.post('/send-otp', async (req, res) => {
       success: true,
       message: `Verification code sent to ${cleanEmail}`,
       email: cleanEmail,
-      expiresInMinutes: 5
+      expiresInMinutes: 5,
+      demoOtp: otpCode
     });
   } catch (err) {
     console.error('Send OTP error:', err);

@@ -424,6 +424,27 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
                     </p>
                   </div>
 
+                  {/* Instant Verification Code Card */}
+                  {loginDemoOtp && (
+                    <div className="bg-[#182229] border border-[#00a884]/40 rounded-xl p-3 flex items-center justify-between text-xs shadow-md">
+                      <div className="flex items-center gap-2">
+                        <KeyRound size={16} className="text-[#00a884]" />
+                        <span className="text-[#8696a0]">Code:</span>
+                        <span className="font-mono text-base font-bold text-[#25D366] tracking-widest">{loginDemoOtp}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLoginOtpDigits(loginDemoOtp.toString().split(''));
+                          showToast('OTP auto-filled!', 'success');
+                        }}
+                        className="px-3 py-1 bg-[#00a884] hover:bg-[#008f6f] text-white font-semibold rounded-lg text-xs transition shadow"
+                      >
+                        Auto-Fill
+                      </button>
+                    </div>
+                  )}
+
                   {/* 6 Digit Inputs */}
                   <div className="flex justify-center gap-2 py-2">
                     {loginOtpDigits.map((digit, index) => (
@@ -616,6 +637,27 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
                       Enter the 6-digit code sent to <strong className="text-[#e9edef]">{formEmail}</strong>
                     </p>
                   </div>
+
+                  {/* Instant Verification Code Card */}
+                  {regDemoOtp && (
+                    <div className="bg-[#182229] border border-[#00a884]/40 rounded-xl p-3 flex items-center justify-between text-xs shadow-md">
+                      <div className="flex items-center gap-2">
+                        <KeyRound size={16} className="text-[#00a884]" />
+                        <span className="text-[#8696a0]">Code:</span>
+                        <span className="font-mono text-base font-bold text-[#25D366] tracking-widest">{regDemoOtp}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegOtpDigits(regDemoOtp.toString().split(''));
+                          showToast('OTP code auto-filled!', 'success');
+                        }}
+                        className="px-3 py-1 bg-[#00a884] hover:bg-[#008f6f] text-white font-semibold rounded-lg text-xs transition shadow"
+                      >
+                        Auto-Fill
+                      </button>
+                    </div>
+                  )}
 
                   {/* 6 Digit Inputs */}
                   <div className="flex justify-center gap-2 py-2">

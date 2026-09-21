@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-chat-server",
+  "version": "1.0.0",
+  "description": "Real-time WhatsApp style chat server with SQLite & Socket.io",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.1",
+    "express": "^4.21.2",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.10",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3",
+    "sqlite3": "^5.1.7",
+    "uuid": "^11.1.0"
+  }
+}

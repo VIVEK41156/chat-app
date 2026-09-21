@@ -350,7 +350,7 @@ export const ChatArea = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0b141a] relative">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0b141a] relative">
       {/* Hidden File Inputs */}
       <input
         type="file"
@@ -374,21 +374,22 @@ export const ChatArea = () => {
         onChange={(e) => handleFileSelect(e, 'audio')}
       />
 
-      {/* Top Chat Header - Fixed & Sticky */}
-      <div className="sticky top-0 z-30 flex-shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-b border-[#222d34] shadow-md select-none">
-        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-          {/* Back button to exit chat / back to chats list */}
+      {/* Top Chat Header - WhatsApp Mobile & Desktop Fixed Sticky Bar */}
+      <div className="sticky top-0 z-40 flex-shrink-0 w-full flex items-center justify-between px-2 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-b border-[#222d34] shadow-md select-none">
+        <div className="flex items-center gap-1 sm:gap-2.5 min-w-0 flex-1 mr-1">
+          {/* Back button to exit chat / back to chats list on mobile */}
           <button
             onClick={() => setActiveFriend(null)}
-            className="p-1.5 -ml-1 rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#374248] transition flex items-center justify-center flex-shrink-0"
-            title="Exit / Back to Chats"
+            className="p-1.5 rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#374248] transition flex items-center justify-center flex-shrink-0"
+            title="Back to Chats"
           >
-            <ArrowLeft size={21} />
+            <ArrowLeft size={20} />
           </button>
 
+          {/* Contact Avatar and Name / Status */}
           <div
             onClick={() => setShowContactInfo(true)}
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 flex-1"
             title="Click to view contact info"
           >
             <div className="relative flex-shrink-0">
@@ -402,42 +403,43 @@ export const ChatArea = () => {
               ) : null}
             </div>
 
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-[#e9edef] group-hover:text-[#00a884] transition truncate max-w-[130px] sm:max-w-[200px]">
+                <span className="text-[13.5px] sm:text-sm font-semibold text-[#e9edef] group-hover:text-[#00a884] transition truncate max-w-[120px] xs:max-w-[160px] sm:max-w-[240px]">
                   {activeFriend.name}
                 </span>
                 {activeTimer > 0 && (
                   <span title={`Disappearing messages on: ${formatTimerLabel(activeTimer)}`}>
-                    <Clock size={13} className="text-[#00a884] flex-shrink-0" />
+                    <Clock size={12} className="text-[#00a884] flex-shrink-0" />
                   </span>
                 )}
               </div>
-              <div className="text-[11px] sm:text-xs text-[#8696a0] leading-tight truncate">
+              <div className="text-[11px] sm:text-xs text-[#8696a0] leading-tight truncate max-w-[120px] xs:max-w-[160px] sm:max-w-[240px]">
                 {formatHeaderStatus()}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-[#aebac1] relative" ref={moreMenuRef}>
+        {/* Action Buttons: Phone Call, Video Call, Search, 3-dots Menu */}
+        <div className="flex items-center gap-0.5 sm:gap-1 text-[#aebac1] relative flex-shrink-0" ref={moreMenuRef}>
           <button
             onClick={() => startVoiceCall(activeFriend)}
-            className="p-2 rounded-full hover:bg-[#374248] text-[#00a884] hover:text-[#25D366] transition"
+            className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] text-[#00a884] hover:text-[#25D366] transition"
             title="Start voice call"
           >
             <Phone size={18} />
           </button>
           <button
             onClick={() => showToast('Video calling demo feature', 'info')}
-            className="p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition"
+            className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition hidden xs:flex items-center justify-center"
             title="Start video call"
           >
             <Video size={18} />
           </button>
           <button
             onClick={() => showToast('Search within conversation', 'info')}
-            className="p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition"
+            className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition hidden sm:flex items-center justify-center"
             title="Search in conversation"
           >
             <Search size={18} />
@@ -446,7 +448,7 @@ export const ChatArea = () => {
           {/* Three Dots Menu Button */}
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className={`p-2 rounded-full transition ${
+            className={`p-1.5 sm:p-2 rounded-full transition ${
               showMoreMenu ? 'bg-[#374248] text-[#00a884]' : 'hover:bg-[#374248] hover:text-[#e9edef]'
             }`}
             title="More Options"
@@ -456,7 +458,7 @@ export const ChatArea = () => {
 
           {/* WhatsApp-Style Three Dots Dropdown Menu */}
           {showMoreMenu && (
-            <div className="absolute top-12 right-0 z-40 bg-[#202c33] border border-[#2a3942] rounded-xl shadow-2xl py-2 w-60 animate-fade-in text-xs select-none">
+            <div className="absolute top-11 sm:top-12 right-0 z-50 bg-[#202c33] border border-[#2a3942] rounded-xl shadow-2xl py-2 w-56 sm:w-60 animate-fade-in text-xs select-none">
               <button
                 onClick={() => {
                   setShowMoreMenu(false);
@@ -480,7 +482,7 @@ export const ChatArea = () => {
                   <Clock size={16} className="text-[#00a884]" />
                   <span>Disappearing messages</span>
                 </div>
-                <span className="text-[10.5px] text-[#00a884] bg-[#00a884]/10 px-2 py-0.5 rounded font-medium">
+                <span className="text-[10px] text-[#00a884] bg-[#00a884]/10 px-2 py-0.5 rounded font-medium">
                   {formatTimerLabel(activeTimer)}
                 </span>
               </button>
@@ -526,7 +528,7 @@ export const ChatArea = () => {
 
       {/* Messages Stream */}
       <div
-        className={`flex-1 overflow-y-auto px-4 sm:px-12 py-4 space-y-2.5 ${chatWallpaper?.className || 'whatsapp-chat-bg bg-[#0b141a]'}`}
+        className={`flex-1 overflow-y-auto px-2.5 sm:px-12 py-3 sm:py-4 space-y-2.5 overscroll-contain ${chatWallpaper?.className || 'whatsapp-chat-bg bg-[#0b141a]'}`}
         style={chatWallpaper?.style || {}}
       >
         {/* Disappearing Messages Active Banner */}

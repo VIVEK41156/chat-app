@@ -81,8 +81,8 @@ router.get('/:userId/:friendId', async (req, res) => {
       [userId, friendId, friendId, userId, now]
     );
 
-    const messages = await dbAll(
-      `SELECT id, sender_id, receiver_id, content, message_type, file_url, file_name, file_size, status, created_at, delivered_at, read_at, expires_at 
+    const rows = await dbAll(
+      `SELECT id, sender_id, receiver_id, content, message_type, file_url, file_name, file_size, status, created_at, delivered_at, read_at, expires_at, is_edited, edited_at, is_deleted_everyone, deleted_for_users 
        FROM messages 
        WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
          AND (expires_at IS NULL OR expires_at > ?)
@@ -90,10 +90,146 @@ router.get('/:userId/:friendId', async (req, res) => {
       [userId, friendId, friendId, userId, now]
     );
 
+    // Filter out messages where deleted_for_users contains userId
+    const messages = rows.filter((msg) => {
+      try {
+        const deletedUsers = JSON.parse(msg.deleted_for_users || '[]');
+        return !deletedUsers.includes(userId);
+      } catch (e) {
+        return true;
+      }
+    });
+
     return res.json({ messages });
   } catch (err) {
     console.error('Fetch messages error:', err);
     return res.status(500).json({ error: 'Failed to fetch messages.' });
+  }
+});
+
+// Edit message (Only allowed for sender on un-deleted messages)
+router.put('/edit/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { user_id, content } = req.body;
+
+    if (!user_id || !content || !content.trim()) {
+      return res.status(400).json({ error: 'user_id and valid content are required.' });
+    }
+
+    const msg = await dbGet('SELECT * FROM messages WHERE id = ?', [messageId]);
+    if (!msg) {
+      return res.status(404).json({ error: 'Message not found.' });
+    }
+
+    if (msg.sender_id !== user_id) {
+      return res.status(403).json({ error: 'You can only edit your own sent messages.' });
+    }
+
+    if (msg.is_deleted_everyone) {
+      return res.status(400).json({ error: 'Cannot edit a deleted message.' });
+    }
+
+    const now = new Date().toISOString();
+    const newContent = content.trim();
+
+    await dbRun(
+      'UPDATE messages SET content = ?, is_edited = 1, edited_at = ? WHERE id = ?',
+      [newContent, now, messageId]
+    );
+
+    const updatedMsg = await dbGet('SELECT * FROM messages WHERE id = ?', [messageId]);
+
+    const io = getIO();
+    if (io) {
+      io.to(msg.sender_id).emit('message:edited', updatedMsg);
+      io.to(msg.receiver_id).emit('message:edited', updatedMsg);
+    }
+
+    return res.json({ message: 'Message edited successfully', data: updatedMsg });
+  } catch (err) {
+    console.error('Edit message error:', err);
+    return res.status(500).json({ error: 'Failed to edit message.' });
+  }
+});
+
+// Delete for Everyone (Sender only)
+router.post('/delete-for-everyone', async (req, res) => {
+  try {
+    const { message_id, user_id } = req.body;
+    if (!message_id || !user_id) {
+      return res.status(400).json({ error: 'message_id and user_id are required.' });
+    }
+
+    const msg = await dbGet('SELECT * FROM messages WHERE id = ?', [message_id]);
+    if (!msg) {
+      return res.status(404).json({ error: 'Message not found.' });
+    }
+
+    if (msg.sender_id !== user_id) {
+      return res.status(403).json({ error: 'You can only delete your own sent messages for everyone.' });
+    }
+
+    await dbRun(
+      `UPDATE messages 
+       SET is_deleted_everyone = 1, content = '', file_url = NULL, file_name = NULL, file_size = NULL 
+       WHERE id = ?`,
+      [message_id]
+    );
+
+    const updatedMsg = await dbGet('SELECT * FROM messages WHERE id = ?', [message_id]);
+
+    const io = getIO();
+    if (io) {
+      io.to(msg.sender_id).emit('message:deleted_everyone', { messageId: message_id, message: updatedMsg, friendId: msg.receiver_id });
+      io.to(msg.receiver_id).emit('message:deleted_everyone', { messageId: message_id, message: updatedMsg, friendId: msg.sender_id });
+    }
+
+    return res.json({ message: 'Message deleted for everyone', data: updatedMsg });
+  } catch (err) {
+    console.error('Delete for everyone error:', err);
+    return res.status(500).json({ error: 'Failed to delete message for everyone.' });
+  }
+});
+
+// Delete for Me Only
+router.post('/delete-for-me', async (req, res) => {
+  try {
+    const { message_id, user_id } = req.body;
+    if (!message_id || !user_id) {
+      return res.status(400).json({ error: 'message_id and user_id are required.' });
+    }
+
+    const msg = await dbGet('SELECT * FROM messages WHERE id = ?', [message_id]);
+    if (!msg) {
+      return res.status(404).json({ error: 'Message not found.' });
+    }
+
+    let deletedUsers = [];
+    try {
+      deletedUsers = JSON.parse(msg.deleted_for_users || '[]');
+    } catch (e) {
+      deletedUsers = [];
+    }
+
+    if (!deletedUsers.includes(user_id)) {
+      deletedUsers.push(user_id);
+    }
+
+    await dbRun(
+      'UPDATE messages SET deleted_for_users = ? WHERE id = ?',
+      [JSON.stringify(deletedUsers), message_id]
+    );
+
+    const io = getIO();
+    if (io) {
+      io.to(user_id).emit('message:deleted_for_me', { messageId: message_id });
+    }
+
+    return res.json({ message: 'Message deleted for you', messageId: message_id });
+  } catch (err) {
+    console.error('Delete for me error:', err);
+    return res.status(500).json({ error: 'Failed to delete message for you.' });
   }
 });
 

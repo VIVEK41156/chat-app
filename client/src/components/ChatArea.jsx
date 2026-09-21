@@ -25,7 +25,11 @@ import {
   Check,
   AlertTriangle,
   Palette,
-  ArrowLeft
+  ArrowLeft,
+  Pencil,
+  Copy,
+  Ban,
+  ChevronDown
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 
@@ -55,6 +59,9 @@ export const ChatArea = () => {
     messages,
     sendMessage,
     sendFileMessage,
+    editMessage,
+    deleteForEveryone,
+    deleteForMe,
     clearActiveChat,
     updateDisappearingTimer,
     emitTyping,
@@ -77,6 +84,113 @@ export const ChatArea = () => {
   const [pendingFile, setPendingFile] = useState(null);
   const [fileCaption, setFileCaption] = useState('');
   const [previewModalImage, setPreviewModalImage] = useState(null);
+
+  // Message Context & Action states
+  const [selectedMessageForAction, setSelectedMessageForAction] = useState(null);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editInputText, setEditInputText] = useState('');
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  const touchTimerRef = useRef(null);
+  const touchMovedRef = useRef(false);
+
+  const handleTouchStart = (msg) => {
+    touchMovedRef.current = false;
+    if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+    touchTimerRef.current = setTimeout(() => {
+      if (!touchMovedRef.current) {
+        if (window.navigator?.vibrate) {
+          try { window.navigator.vibrate(40); } catch (e) {}
+        }
+        setSelectedMessageForAction(msg);
+        setShowActionModal(true);
+      }
+    }, 450);
+  };
+
+  const handleTouchMove = () => {
+    touchMovedRef.current = true;
+    if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+  };
+
+  const handleContextMenu = (msg, e) => {
+    e.preventDefault();
+    setSelectedMessageForAction(msg);
+    setShowActionModal(true);
+  };
+
+  const openEditModal = (msg) => {
+    setSelectedMessageForAction(msg);
+    setEditInputText(msg.content || '');
+    setShowActionModal(false);
+    setShowEditModal(true);
+  };
+
+  const openDeleteModal = (msg) => {
+    setSelectedMessageForAction(msg);
+    setShowActionModal(false);
+    setShowDeleteModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedMessageForAction || !editInputText.trim()) return;
+    setIsSubmittingAction(true);
+    try {
+      await editMessage(selectedMessageForAction.id, editInputText.trim());
+      setShowEditModal(false);
+      setSelectedMessageForAction(null);
+      setEditInputText('');
+    } catch (err) {
+      // handled in context
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleDeleteForEveryone = async () => {
+    if (!selectedMessageForAction) return;
+    setIsSubmittingAction(true);
+    try {
+      await deleteForEveryone(selectedMessageForAction.id);
+      setShowDeleteModal(false);
+      setSelectedMessageForAction(null);
+    } catch (err) {
+      // handled
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleDeleteForMe = async () => {
+    if (!selectedMessageForAction) return;
+    setIsSubmittingAction(true);
+    try {
+      await deleteForMe(selectedMessageForAction.id);
+      setShowDeleteModal(false);
+      setSelectedMessageForAction(null);
+    } catch (err) {
+      // handled
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleCopyText = (msg) => {
+    if (!msg?.content) return;
+    try {
+      navigator.clipboard.writeText(msg.content);
+      showToast('Message copied to clipboard', 'info');
+    } catch (e) {
+      showToast('Failed to copy text', 'error');
+    }
+    setShowActionModal(false);
+  };
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -448,107 +562,136 @@ export const ChatArea = () => {
         {/* Message Bubbles */}
         {messages.map((msg) => {
           const isFromMe = msg.sender_id === currentUser?.id;
-          const isImage = msg.message_type === 'image' || (msg.file_url && /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(msg.file_url));
-          const isVideo = msg.message_type === 'video' || (msg.file_url && /\.(mp4|webm|mov)$/i.test(msg.file_url));
-          const isAudio = msg.message_type === 'audio' || (msg.file_url && /\.(mp3|wav|ogg|m4a)$/i.test(msg.file_url));
-          const isDoc = msg.file_url && !isImage && !isVideo && !isAudio;
+          const isDeleted = Boolean(msg.is_deleted_everyone);
+          const isEdited = Boolean(msg.is_edited);
+          const isImage = !isDeleted && (msg.message_type === 'image' || (msg.file_url && /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(msg.file_url)));
+          const isVideo = !isDeleted && (msg.message_type === 'video' || (msg.file_url && /\.(mp4|webm|mov)$/i.test(msg.file_url)));
+          const isAudio = !isDeleted && (msg.message_type === 'audio' || (msg.file_url && /\.(mp3|wav|ogg|m4a)$/i.test(msg.file_url)));
+          const isDoc = !isDeleted && (msg.file_url && !isImage && !isVideo && !isAudio);
           const isDisappearing = Boolean(msg.expires_at);
 
           return (
             <div
               key={msg.id}
-              className={`flex ${isFromMe ? 'justify-end' : 'justify-start'} animate-fade-in`}
+              className={`flex ${isFromMe ? 'justify-end' : 'justify-start'} animate-fade-in group`}
             >
               <div
-                className={`max-w-[85%] sm:max-w-[70%] md:max-w-[55%] rounded-lg shadow text-sm relative break-words overflow-hidden ${
+                onTouchStart={() => handleTouchStart(msg)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onContextMenu={(e) => handleContextMenu(msg, e)}
+                className={`max-w-[85%] sm:max-w-[70%] md:max-w-[55%] rounded-lg shadow text-sm relative break-words overflow-hidden select-text transition-all ${
                   isFromMe
-                    ? 'bg-[#005c4b] text-[#e9edef] bubble-out rounded-tr-none'
-                    : 'bg-[#202c33] text-[#e9edef] bubble-in rounded-tl-none'
+                    ? isDeleted ? 'bg-[#005c4b]/40 text-[#8696a0] bubble-out rounded-tr-none' : 'bg-[#005c4b] text-[#e9edef] bubble-out rounded-tr-none'
+                    : isDeleted ? 'bg-[#202c33]/40 text-[#8696a0] bubble-in rounded-tl-none' : 'bg-[#202c33] text-[#e9edef] bubble-in rounded-tl-none'
                 }`}
               >
-                {/* 1. Image Attachment */}
-                {isImage && (
-                  <div className="p-1">
-                    <img
-                      src={getFileUrl(msg.file_url)}
-                      alt={msg.file_name || 'Attachment'}
-                      onClick={() => setPreviewModalImage(getFileUrl(msg.file_url))}
-                      onError={(e) => {
-                        if (msg.file_url && !e.currentTarget.src.includes(':5000')) {
-                          e.currentTarget.src = `http://localhost:5000${msg.file_url.startsWith('/') ? '' : '/'}${msg.file_url}`;
-                        }
-                      }}
-                      className="rounded-lg max-h-[340px] min-h-[120px] w-full object-cover cursor-pointer hover:opacity-95 transition bg-[#111b21]"
-                    />
-                  </div>
-                )}
+                {/* Desktop dropdown menu trigger */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedMessageForAction(msg);
+                    setShowActionModal(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-[#8696a0] hover:text-white transition rounded-full hover:bg-black/30 absolute top-1 right-1 z-10"
+                  title="Message options"
+                >
+                  <ChevronDown size={14} />
+                </button>
 
-                {/* 2. Video Attachment */}
-                {isVideo && (
-                  <div className="p-1">
-                    <video
-                      src={getFileUrl(msg.file_url)}
-                      controls
-                      onError={(e) => {
-                        if (msg.file_url && !e.currentTarget.src.includes(':5000')) {
-                          e.currentTarget.src = `http://localhost:5000${msg.file_url.startsWith('/') ? '' : '/'}${msg.file_url}`;
-                        }
-                      }}
-                      className="rounded-lg max-h-[300px] w-full bg-black"
-                    />
+                {/* Deleted for Everyone State */}
+                {isDeleted ? (
+                  <div className="flex items-center gap-2 px-3.5 py-2.5 text-[#8696a0] italic select-none text-[13px]">
+                    <Ban size={15} className="text-[#8696a0]/70 flex-shrink-0" />
+                    <span>{isFromMe ? 'You deleted this message' : 'This message was deleted'}</span>
                   </div>
-                )}
-
-                {/* 3. Audio Attachment */}
-                {isAudio && (
-                  <div className="p-3">
-                    <div className="flex items-center gap-2 mb-1.5 text-xs text-[#aebac1]">
-                      <Music size={16} className="text-[#00a884]" />
-                      <span className="font-medium truncate">{msg.file_name || 'Audio file'}</span>
-                    </div>
-                    <audio
-                      src={getFileUrl(msg.file_url)}
-                      controls
-                      onError={(e) => {
-                        if (msg.file_url && !e.currentTarget.src.includes(':5000')) {
-                          e.currentTarget.src = `http://localhost:5000${msg.file_url.startsWith('/') ? '' : '/'}${msg.file_url}`;
-                        }
-                      }}
-                      className="w-full h-8"
-                    />
-                  </div>
-                )}
-
-                {/* 4. Document / File Attachment */}
-                {isDoc && (
-                  <div className="p-2.5">
-                    <div className="flex items-center gap-3 bg-[#111b21]/70 p-3 rounded-lg border border-white/5">
-                      <div className="w-10 h-10 rounded-lg bg-[#00a884]/20 flex items-center justify-center text-[#00a884] flex-shrink-0">
-                        <FileText size={22} />
+                ) : (
+                  <>
+                    {/* 1. Image Attachment */}
+                    {isImage && (
+                      <div className="p-1">
+                        <img
+                          src={getFileUrl(msg.file_url)}
+                          alt={msg.file_name || 'Attachment'}
+                          onClick={() => setPreviewModalImage(getFileUrl(msg.file_url))}
+                          onError={(e) => {
+                            if (msg.file_url && !e.currentTarget.src.includes(':5000')) {
+                              e.currentTarget.src = `http://localhost:5000${msg.file_url.startsWith('/') ? '' : '/'}${msg.file_url}`;
+                            }
+                          }}
+                          className="rounded-lg max-h-[340px] min-h-[120px] w-full object-cover cursor-pointer hover:opacity-95 transition bg-[#111b21]"
+                        />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-[#e9edef] truncate">{msg.file_name || 'Document'}</p>
-                        <p className="text-[11px] text-[#8696a0] mt-0.5">{msg.file_size || 'File'}</p>
-                      </div>
-                      <a
-                        href={getFileUrl(msg.file_url)}
-                        download={msg.file_name || 'download'}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 rounded-full bg-[#202c33] hover:bg-[#00a884] text-white transition flex-shrink-0"
-                        title="Download file"
-                      >
-                        <Download size={15} />
-                      </a>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Text Content / Caption */}
-                {msg.content && (
-                  <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap select-text px-3 py-1.5 pr-14">
-                    {msg.content}
-                  </p>
+                    {/* 2. Video Attachment */}
+                    {isVideo && (
+                      <div className="p-1">
+                        <video
+                          src={getFileUrl(msg.file_url)}
+                          controls
+                          onError={(e) => {
+                            if (msg.file_url && !e.currentTarget.src.includes(':5000')) {
+                              e.currentTarget.src = `http://localhost:5000${msg.file_url.startsWith('/') ? '' : '/'}${msg.file_url}`;
+                            }
+                          }}
+                          className="rounded-lg max-h-[300px] w-full bg-black"
+                        />
+                      </div>
+                    )}
+
+                    {/* 3. Audio Attachment */}
+                    {isAudio && (
+                      <div className="p-3">
+                        <div className="flex items-center gap-2 mb-1.5 text-xs text-[#aebac1]">
+                          <Music size={16} className="text-[#00a884]" />
+                          <span className="font-medium truncate">{msg.file_name || 'Audio file'}</span>
+                        </div>
+                        <audio
+                          src={getFileUrl(msg.file_url)}
+                          controls
+                          onError={(e) => {
+                            if (msg.file_url && !e.currentTarget.src.includes(':5000')) {
+                              e.currentTarget.src = `http://localhost:5000${msg.file_url.startsWith('/') ? '' : '/'}${msg.file_url}`;
+                            }
+                          }}
+                          className="w-full h-8"
+                        />
+                      </div>
+                    )}
+
+                    {/* 4. Document / File Attachment */}
+                    {isDoc && (
+                      <div className="p-2.5">
+                        <div className="flex items-center gap-3 bg-[#111b21]/70 p-3 rounded-lg border border-white/5">
+                          <div className="w-10 h-10 rounded-lg bg-[#00a884]/20 flex items-center justify-center text-[#00a884] flex-shrink-0">
+                            <FileText size={22} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-[#e9edef] truncate">{msg.file_name || 'Document'}</p>
+                            <p className="text-[11px] text-[#8696a0] mt-0.5">{msg.file_size || 'File'}</p>
+                          </div>
+                          <a
+                            href={getFileUrl(msg.file_url)}
+                            download={msg.file_name || 'download'}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 rounded-full bg-[#202c33] hover:bg-[#00a884] text-white transition flex-shrink-0"
+                            title="Download file"
+                          >
+                            <Download size={15} />
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Text Content / Caption */}
+                    {msg.content && (
+                      <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap select-text px-3 py-1.5 pr-14">
+                        {msg.content}
+                      </p>
+                    )}
+                  </>
                 )}
 
                 {/* Timestamp & Ticks Footer */}
@@ -557,11 +700,14 @@ export const ChatArea = () => {
                     !msg.content && (isImage || isVideo) ? 'absolute bottom-2 right-2 bg-black/50 px-2 py-0.5 rounded-full text-white' : ''
                   }`}
                 >
+                  {isEdited && !isDeleted && (
+                    <span className="text-[10px] text-[#8696a0]/90 italic mr-0.5 font-medium">edited</span>
+                  )}
                   {isDisappearing && (
                     <Clock size={11} className="text-[#00a884] mr-0.5" title="Disappearing message" />
                   )}
                   <span>{formatMessageTime(msg.created_at)}</span>
-                  {isFromMe && <MessageTicks status={msg.status} />}
+                  {isFromMe && !isDeleted && <MessageTicks status={msg.status} />}
                 </div>
               </div>
             </div>
@@ -928,6 +1074,203 @@ export const ChatArea = () => {
         isOpen={showWallpaperModal}
         onClose={() => setShowWallpaperModal(false)}
       />
+
+      {/* Message Action Menu Modal / Bottom Sheet */}
+      {showActionModal && selectedMessageForAction && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => {
+            setShowActionModal(false);
+            setSelectedMessageForAction(null);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#202c33] border-t sm:border border-[#2a3942] rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-4 shadow-2xl space-y-3 animate-slide-up sm:animate-none"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-[#2a3942]/70">
+              <span className="text-xs font-semibold text-[#8696a0] uppercase tracking-wider">Message Options</span>
+              <button
+                onClick={() => {
+                  setShowActionModal(false);
+                  setSelectedMessageForAction(null);
+                }}
+                className="text-[#8696a0] hover:text-white p-1 rounded-full hover:bg-[#2a3942]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Message snippet preview */}
+            <div className="bg-[#111b21] p-2.5 rounded-lg border border-[#2a3942]/60 text-xs text-[#aebac1] truncate">
+              {selectedMessageForAction.is_deleted_everyone ? (
+                <span className="italic text-[#8696a0]">🚫 Deleted message</span>
+              ) : selectedMessageForAction.content ? (
+                <span>&ldquo;{selectedMessageForAction.content}&rdquo;</span>
+              ) : (
+                <span>📎 Attachment ({selectedMessageForAction.message_type || 'File'})</span>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-1">
+              {/* Edit (Sender only, not deleted, and has text) */}
+              {selectedMessageForAction.sender_id === currentUser?.id &&
+                !selectedMessageForAction.is_deleted_everyone &&
+                selectedMessageForAction.content && (
+                  <button
+                    onClick={() => openEditModal(selectedMessageForAction)}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-[#2a3942] text-[#e9edef] rounded-xl text-left transition font-medium text-xs sm:text-sm"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#00a884]/20 flex items-center justify-center text-[#00a884]">
+                      <Pencil size={15} />
+                    </div>
+                    <span>Edit message</span>
+                  </button>
+                )}
+
+              {/* Copy Text */}
+              {selectedMessageForAction.content && !selectedMessageForAction.is_deleted_everyone && (
+                <button
+                  onClick={() => handleCopyText(selectedMessageForAction)}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-[#2a3942] text-[#e9edef] rounded-xl text-left transition font-medium text-xs sm:text-sm"
+                >
+                  <div className="w-7 h-7 rounded-full bg-[#8696a0]/20 flex items-center justify-center text-[#8696a0]">
+                    <Copy size={15} />
+                  </div>
+                  <span>Copy text</span>
+                </button>
+              )}
+
+              {/* Delete message */}
+              <button
+                onClick={() => openDeleteModal(selectedMessageForAction)}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-red-500/10 text-[#ff5b5b] rounded-xl text-left transition font-medium text-xs sm:text-sm"
+              >
+                <div className="w-7 h-7 rounded-full bg-red-500/20 flex items-center justify-center text-[#ff5b5b]">
+                  <Trash2 size={15} />
+                </div>
+                <span>Delete message</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Delete Confirmation Modal */}
+      {showDeleteModal && selectedMessageForAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#202c33] border border-[#2a3942] rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 pb-2 border-b border-[#2a3942]">
+              <div className="w-9 h-9 rounded-full bg-red-500/20 flex items-center justify-center text-[#ff5b5b] flex-shrink-0">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[#e9edef]">Delete message?</h3>
+                <p className="text-[11px] text-[#8696a0]">Choose how you would like to delete this message</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {/* Option 1: Delete for everyone (Sender only and not already deleted) */}
+              {selectedMessageForAction.sender_id === currentUser?.id &&
+                !selectedMessageForAction.is_deleted_everyone && (
+                  <button
+                    disabled={isSubmittingAction}
+                    onClick={handleDeleteForEveryone}
+                    className="w-full py-2.5 px-4 bg-red-500/20 hover:bg-red-500/30 text-[#ff5b5b] border border-red-500/30 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2"
+                  >
+                    <Ban size={14} />
+                    <span>Delete for everyone</span>
+                  </button>
+                )}
+
+              {/* Option 2: Delete for me */}
+              <button
+                disabled={isSubmittingAction}
+                onClick={handleDeleteForMe}
+                className="w-full py-2.5 px-4 bg-[#111b21] hover:bg-[#2a3942] text-[#e9edef] border border-[#2a3942] rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2"
+              >
+                <Trash2 size={14} className="text-[#8696a0]" />
+                <span>Delete for me only</span>
+              </button>
+
+              {/* Option 3: Cancel */}
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedMessageForAction(null);
+                }}
+                className="w-full py-2 text-[#8696a0] hover:text-[#e9edef] text-xs font-medium transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Edit Message Modal */}
+      {showEditModal && selectedMessageForAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#202c33] border border-[#2a3942] rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#2a3942]">
+              <div className="flex items-center gap-2">
+                <Pencil size={17} className="text-[#00a884]" />
+                <h3 className="text-sm font-semibold text-[#e9edef]">Edit Message</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedMessageForAction(null);
+                }}
+                className="text-[#8696a0] hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <textarea
+                value={editInputText}
+                onChange={(e) => setEditInputText(e.target.value)}
+                rows={4}
+                className="w-full bg-[#111b21] text-[#e9edef] placeholder-[#8696a0] text-sm p-3.5 rounded-xl border border-[#2a3942] focus:outline-none focus:border-[#00a884] resize-none"
+                placeholder="Edit your message..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveEdit();
+                  }
+                }}
+              />
+              <p className="text-[11px] text-[#8696a0] italic">
+                ℹ️ Edited messages are marked with an <strong>(edited)</strong> tag for all participants.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#2a3942]">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedMessageForAction(null);
+                }}
+                className="px-4 py-2 bg-[#111b21] hover:bg-[#2a3942] text-[#e9edef] text-xs font-medium rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isSubmittingAction || !editInputText.trim()}
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-[#00a884] hover:bg-[#008f6f] disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition shadow flex items-center gap-1.5"
+              >
+                <Check size={14} /> Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

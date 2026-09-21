@@ -8,12 +8,14 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 let transporter = null;
+let activeGmailUser = '';
 
 export const initEmailTransporter = () => {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASS;
+  const user = process.env.GMAIL_USER || 'vivekparri41156@gmail.com';
+  const pass = process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || 'kjxh oong gvdh dfyu';
 
   if (user && pass) {
+    activeGmailUser = user;
     transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -23,7 +25,7 @@ export const initEmailTransporter = () => {
     });
     console.log(`[Email] Gmail SMTP configured for: ${user}`);
   } else {
-    console.log('[Email] No Gmail credentials found in .env. Running in Mock / Dev Preview Mode.');
+    console.log('[Email] No Gmail credentials found. Running in Mock / Dev Preview Mode.');
   }
 };
 
@@ -72,8 +74,9 @@ export const sendOtpEmail = async (toEmail, otpCode, name = 'User') => {
 
   if (transporter) {
     try {
+      const fromAddr = activeGmailUser || 'vivekparri41156@gmail.com';
       const info = await transporter.sendMail({
-        from: `"WhatsApp Security" <${process.env.GMAIL_USER}>`,
+        from: `"WhatsApp Security" <${fromAddr}>`,
         to: toEmail,
         subject: `${otpCode} is your WhatsApp verification code`,
         text: `Your WhatsApp verification code is: ${otpCode}. It expires in 5 minutes.`,

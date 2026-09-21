@@ -114,6 +114,9 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     socket.off('status:created');
     socket.off('status:view_updated');
     socket.off('user:profile_updated');
+    socket.off('message:edited');
+    socket.off('message:deleted_everyone');
+    socket.off('message:deleted_for_me');
 
     // 1. Incoming new message
     socket.on('message:receive', (newMsg) => {
@@ -286,6 +289,29 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       if (active && active.id === updatedUserId) {
         setActiveFriend((prev) => (prev ? { ...prev, avatar, ...user } : prev));
       }
+    });
+
+    // 13. Message Edited in Real-Time
+    socket.on('message:edited', (updatedMsg) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === updatedMsg.id ? { ...msg, ...updatedMsg } : msg))
+      );
+    });
+
+    // 14. Message Deleted for Everyone in Real-Time
+    socket.on('message:deleted_everyone', ({ messageId, message }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, ...message, is_deleted_everyone: 1, content: '', file_url: null, file_name: null }
+            : msg
+        )
+      );
+    });
+
+    // 15. Message Deleted for Me
+    socket.on('message:deleted_for_me', ({ messageId }) => {
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     });
   };
 
@@ -507,6 +533,58 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
   };
 
+  // Edit sent message
+  const editMessage = async (messageId, newContent) => {
+    if (!currentUser || !messageId || !newContent.trim()) return;
+    try {
+      const res = await api.editMessage(messageId, currentUser.id, newContent);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, ...res.data } : m))
+      );
+      showToast('Message edited', 'success');
+      return res.data;
+    } catch (err) {
+      console.error('Error editing message:', err);
+      showToast(err.response?.data?.error || 'Failed to edit message', 'error');
+      throw err;
+    }
+  };
+
+  // Delete message for everyone (sender only)
+  const deleteForEveryone = async (messageId) => {
+    if (!currentUser || !messageId) return;
+    try {
+      const res = await api.deleteForEveryone(messageId, currentUser.id);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, ...res.data, is_deleted_everyone: 1, content: '', file_url: null, file_name: null }
+            : m
+        )
+      );
+      showToast('Message deleted for everyone', 'info');
+      return res.data;
+    } catch (err) {
+      console.error('Error deleting for everyone:', err);
+      showToast(err.response?.data?.error || 'Failed to delete message for everyone', 'error');
+      throw err;
+    }
+  };
+
+  // Delete message for me only
+  const deleteForMe = async (messageId) => {
+    if (!currentUser || !messageId) return;
+    try {
+      await api.deleteForMe(messageId, currentUser.id);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      showToast('Message deleted for you', 'info');
+    } catch (err) {
+      console.error('Error deleting for me:', err);
+      showToast(err.response?.data?.error || 'Failed to delete message for you', 'error');
+      throw err;
+    }
+  };
+
   // Send friend request
   const sendFriendRequest = async (receiverId) => {
     if (!currentUser) return;
@@ -652,6 +730,9 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         openChatWithFriend,
         sendMessage,
         sendFileMessage,
+        editMessage,
+        deleteForEveryone,
+        deleteForMe,
         clearActiveChat,
         updateDisappearingTimer,
         emitTyping,

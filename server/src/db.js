@@ -91,6 +91,10 @@ export const initDB = async () => {
       delivered_at TEXT,
       read_at TEXT,
       expires_at TEXT,
+      is_edited INTEGER DEFAULT 0,
+      edited_at TEXT,
+      is_deleted_everyone INTEGER DEFAULT 0,
+      deleted_for_users TEXT DEFAULT '[]',
       FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY(receiver_id) REFERENCES users(id) ON DELETE CASCADE
     )
@@ -150,6 +154,18 @@ export const initDB = async () => {
   } catch (e) {}
   try {
     await dbRun(`ALTER TABLE messages ADD COLUMN expires_at TEXT`);
+  } catch (e) {}
+  try {
+    await dbRun(`ALTER TABLE messages ADD COLUMN is_edited INTEGER DEFAULT 0`);
+  } catch (e) {}
+  try {
+    await dbRun(`ALTER TABLE messages ADD COLUMN edited_at TEXT`);
+  } catch (e) {}
+  try {
+    await dbRun(`ALTER TABLE messages ADD COLUMN is_deleted_everyone INTEGER DEFAULT 0`);
+  } catch (e) {}
+  try {
+    await dbRun(`ALTER TABLE messages ADD COLUMN deleted_for_users TEXT DEFAULT '[]'`);
   } catch (e) {}
   try {
     await dbRun(`ALTER TABLE friend_requests ADD COLUMN disappearing_timer INTEGER DEFAULT 0`);

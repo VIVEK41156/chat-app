@@ -105,6 +105,21 @@ export const api = {
     return res.data;
   },
 
+  editMessage: async (messageId, userId, content) => {
+    const res = await apiClient.put(`/messages/edit/${messageId}`, { user_id: userId, content });
+    return res.data;
+  },
+
+  deleteForEveryone: async (messageId, userId) => {
+    const res = await apiClient.post('/messages/delete-for-everyone', { message_id: messageId, user_id: userId });
+    return res.data;
+  },
+
+  deleteForMe: async (messageId, userId) => {
+    const res = await apiClient.post('/messages/delete-for-me', { message_id: messageId, user_id: userId });
+    return res.data;
+  },
+
   setDisappearingTimer: async (user_id, friend_id, timer) => {
     const res = await apiClient.post('/friends/disappearing-timer', { user_id, friend_id, timer });
     return res.data;

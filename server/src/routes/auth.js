@@ -2,6 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { dbGet, dbRun, dbAll } from '../db.js';
 import { sendOtpEmail } from '../emailService.js';
+import { getIO } from '../socket.js';
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ const generate6DigitOtp = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Send Email OTP
+// Send Email OTP (Supports purpose: 'registration' | 'login')
 router.post('/send-otp', async (req, res) => {
   try {
     const { email, name = 'User', purpose = 'registration' } = req.body;
@@ -20,13 +21,20 @@ router.post('/send-otp', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    let recipientName = name;
 
     // Check if email already registered (for registration purpose)
     if (purpose === 'registration') {
-      const existingEmail = await dbGet('SELECT id FROM users WHERE email = ?', [cleanEmail]);
+      const existingEmail = await dbGet('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
       if (existingEmail) {
         return res.status(409).json({ error: 'This email is already registered. Please log in instead.' });
       }
+    } else if (purpose === 'login') {
+      const existingUser = await dbGet('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+      if (!existingUser) {
+        return res.status(404).json({ error: 'No account registered with this email. Please create an account first.' });
+      }
+      recipientName = existingUser.name || name;
     }
 
     // Rate-limiting check: max 1 OTP per 60s per email
@@ -65,7 +73,7 @@ router.post('/send-otp', async (req, res) => {
     );
 
     // Send email via Gmail SMTP / Email Provider
-    const emailResult = await sendOtpEmail(cleanEmail, otpCode, name);
+    const emailResult = await sendOtpEmail(cleanEmail, otpCode, recipientName);
 
     return res.json({
       message: `Verification code sent to ${cleanEmail}`,
@@ -192,13 +200,35 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login / Switch active user
+// Login via Email OTP, userId, or email
 router.post('/login', async (req, res) => {
   try {
-    const { username, userId, email } = req.body;
+    const { email, otp, userId, username } = req.body;
     let user = null;
 
-    if (userId) {
+    if (email && otp) {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanOtp = otp.toString().trim();
+      const now = new Date().toISOString();
+
+      const validOtp = await dbGet(
+        `SELECT * FROM email_otps 
+         WHERE LOWER(email) = ? AND (otp_code = ? OR is_verified = 1) AND expires_at > ?
+         ORDER BY created_at DESC LIMIT 1`,
+        [cleanEmail, cleanOtp, now]
+      );
+
+      if (!validOtp) {
+        return res.status(400).json({ error: 'Invalid or expired OTP code. Please request a new code.' });
+      }
+
+      await dbRun('UPDATE email_otps SET is_verified = 1 WHERE id = ?', [validOtp.id]);
+      user = await dbGet('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+
+      if (!user) {
+        return res.status(404).json({ error: 'No registered user found with this email. Please create an account.' });
+      }
+    } else if (userId) {
       user = await dbGet('SELECT * FROM users WHERE id = ?', [userId]);
     } else if (email) {
       user = await dbGet('SELECT * FROM users WHERE LOWER(email) = ?', [email.trim().toLowerCase()]);
@@ -239,6 +269,16 @@ router.put('/profile/:id', async (req, res) => {
     );
 
     const updatedUser = await dbGet('SELECT * FROM users WHERE id = ?', [id]);
+
+    const io = getIO();
+    if (io) {
+      io.emit('user:profile_updated', {
+        userId: id,
+        avatar: updatedUser.avatar,
+        user: updatedUser
+      });
+    }
+
     return res.json({ message: 'Profile updated successfully', user: updatedUser });
   } catch (err) {
     console.error('Update profile error:', err);

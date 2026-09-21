@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 
-export const Sidebar = ({ onOpenUserModal, isSplitView = false }) => {
+export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = false }) => {
   const {
     currentUser,
     friends,
@@ -102,11 +102,11 @@ export const Sidebar = ({ onOpenUserModal, isSplitView = false }) => {
       {/* Header */}
       <div className="flex items-center justify-between px-3.5 py-3 bg-[#202c33] border-b border-[#222d34]">
         <div className="flex items-center gap-2.5">
-          {/* Avatar with click-to-upload or view */}
+          {/* Avatar with click to open Profile Settings */}
           <div
-            onClick={() => avatarInputRef.current?.click()}
+            onClick={onOpenProfileModal}
             className="relative cursor-pointer group"
-            title="Click to Upload Custom Profile Picture from Computer"
+            title="Click to Open Profile Settings"
           >
             <img
               src={currentUser?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=me'}
@@ -126,9 +126,9 @@ export const Sidebar = ({ onOpenUserModal, isSplitView = false }) => {
           </div>
 
           <div
-            onClick={onOpenUserModal}
+            onClick={onOpenProfileModal}
             className="flex flex-col max-w-[120px] sm:max-w-[150px] cursor-pointer group"
-            title="Click to Switch Account"
+            title="Click to Open Profile Settings"
           >
             <span className="text-sm font-semibold text-[#e9edef] truncate group-hover:text-[#00a884] transition">
               {currentUser?.name || 'Guest User'}
@@ -158,9 +158,9 @@ export const Sidebar = ({ onOpenUserModal, isSplitView = false }) => {
           </button>
 
           <button
-            onClick={onOpenUserModal}
+            onClick={onOpenAuthModal}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-[#00a884] text-white hover:bg-[#008f6f] transition shadow ml-0.5"
-            title="Switch User Profile or Register"
+            title="Log In / Switch Account"
           >
             <Plus size={13} />
             <span className="hidden sm:inline">Switch</span>

@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { FriendsTab } from './components/FriendsTab';
 import { UserSwitcherModal } from './components/UserSwitcherModal';
+import { ProfileSettingsModal } from './components/ProfileSettingsModal';
 import { DualSimulator } from './components/DualSimulator';
 import {
   SplitSquareVertical,
@@ -28,13 +29,14 @@ const MainLayout = ({ onToggleSimulator }) => {
     allUsers
   } = useChat();
 
-  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   React.useEffect(() => {
-    if (!loading && (!currentUser || allUsers.length === 0)) {
-      setUserModalOpen(true);
+    if (!loading && !currentUser) {
+      setAuthModalOpen(true);
     }
-  }, [loading, currentUser, allUsers?.length]);
+  }, [loading, currentUser]);
 
   const friendsStatuses = statusFeed?.friendsStatuses || [];
   const unseenStatusCount = friendsStatuses.filter((g) => g.hasUnseen).length;
@@ -76,7 +78,10 @@ const MainLayout = ({ onToggleSimulator }) => {
               activeFriend ? 'hidden sm:flex' : (activeTab === 'friends' || activeTab === 'requests') ? 'hidden sm:flex' : 'flex'
             }`}
           >
-            <Sidebar onOpenUserModal={() => setUserModalOpen(true)} />
+            <Sidebar
+              onOpenAuthModal={() => setAuthModalOpen(true)}
+              onOpenProfileModal={() => setProfileModalOpen(true)}
+            />
           </div>
 
           {/* Right Main Area on Desktop OR Mobile Active View */}
@@ -159,8 +164,18 @@ const MainLayout = ({ onToggleSimulator }) => {
         )}
       </div>
 
-      {/* User Switcher / Registration Modal */}
-      <UserSwitcherModal isOpen={userModalOpen} onClose={() => setUserModalOpen(false)} />
+      {/* User Auth & Login Modal (Email OTP) */}
+      <UserSwitcherModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+      />
+
+      {/* Profile Settings Modal */}
+      <ProfileSettingsModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        onOpenAuthModal={() => setAuthModalOpen(true)}
+      />
 
       {/* Real-time Toast Banner */}
       {statusNotification && (

@@ -373,16 +373,16 @@ export const ChatArea = () => {
         onChange={(e) => handleFileSelect(e, 'audio')}
       />
 
-      {/* Top Chat Header */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-b border-[#222d34] select-none z-10">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* Back button for mobile navigation */}
+      {/* Top Chat Header - Fixed & Sticky */}
+      <div className="sticky top-0 z-30 flex-shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-b border-[#222d34] shadow-md select-none">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          {/* Back button to exit chat / back to chats list */}
           <button
             onClick={() => setActiveFriend(null)}
-            className="p-1.5 -ml-1 rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#374248] transition flex items-center justify-center sm:hidden"
-            title="Back to Chats"
+            className="p-1.5 -ml-1 rounded-full text-[#aebac1] hover:text-[#e9edef] hover:bg-[#374248] transition flex items-center justify-center flex-shrink-0"
+            title="Exit / Back to Chats"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={21} />
           </button>
 
           <div
@@ -844,11 +844,11 @@ export const ChatArea = () => {
         </div>
       )}
 
-      {/* Message Input Footer */}
+      {/* Message Input Footer - Fixed & Sticky */}
       {!pendingFile && (
         <form
           onSubmit={handleSend}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#202c33] border-t border-[#222d34] select-none z-10"
+          className="sticky bottom-0 z-20 flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-t border-[#222d34] select-none shadow-lg"
         >
           <button
             type="button"

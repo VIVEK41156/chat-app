@@ -674,6 +674,39 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
   };
 
+  // Update Profile Data (Name, Status Message, Avatar)
+  const updateProfile = async (profileData) => {
+    if (!currentUser) return;
+    try {
+      const res = await api.updateProfile(currentUser.id, profileData);
+      if (res.user) {
+        setCurrentUser(res.user);
+        currentUserRef.current = res.user;
+      }
+      refreshData(currentUser.id);
+      return res.user;
+    } catch (err) {
+      console.error('Update profile error:', err);
+      throw err;
+    }
+  };
+
+  // Log Out of Account
+  const logout = () => {
+    localStorage.removeItem('whatsapp_active_user_id');
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    setCurrentUser(null);
+    currentUserRef.current = null;
+    setActiveFriend(null);
+    setMessages([]);
+    setFriends([]);
+    setIncomingRequests([]);
+    setOutgoingRequests([]);
+    showToast('Logged out of your account', 'info');
+  };
+
   // Status Actions
   const uploadStatusMedia = async (formData) => {
     const res = await api.uploadStatus(formData);
@@ -740,6 +773,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         respondFriendRequest,
         registerUser,
         uploadCustomAvatar,
+        updateProfile,
+        logout,
         uploadStatusMedia,
         uploadTextStatus,
         recordStatusView,

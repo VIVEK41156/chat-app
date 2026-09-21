@@ -47,6 +47,18 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Serve frontend client build in production
+const clientDistDir = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistDir)) {
+  app.use(express.static(clientDistDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistDir, 'index.html'));
+  });
+}
+
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {

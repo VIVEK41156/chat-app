@@ -115,7 +115,10 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
     try {
       const res = await api.sendOtp(loginEmail.trim(), 'User', 'login');
       setLoginDemoOtp(res.demoOtp || null);
-      setLoginResendTimer(60);
+      if (res.demoOtp) {
+        setLoginOtpDigits(res.demoOtp.toString().split(''));
+      }
+      setLoginResendTimer(30);
       setLoginStep('otp');
       showToast(res.message || 'Login code sent to your Gmail!', 'success');
       setTimeout(() => loginOtpRefs.current[0]?.focus(), 150);
@@ -194,9 +197,12 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
     try {
       const res = await api.sendOtp(formEmail.trim(), formName.trim(), 'registration');
       setRegDemoOtp(res.demoOtp || null);
-      setRegResendTimer(60);
+      if (res.demoOtp) {
+        setRegOtpDigits(res.demoOtp.toString().split(''));
+      }
+      setRegResendTimer(30);
       setRegStep('otp');
-      showToast(res.message || 'Verification OTP code sent to your Gmail!', 'success');
+      showToast(res.message || 'Verification code sent to your Gmail!', 'success');
       setTimeout(() => regOtpRefs.current[0]?.focus(), 150);
     } catch (err) {
       setErrorMsg(err.response?.data?.error || 'Failed to send verification code.');

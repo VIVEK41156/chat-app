@@ -171,16 +171,14 @@ router.post('/register', async (req, res) => {
     if (otp) {
       const validOtp = await dbGet(
         `SELECT * FROM email_otps 
-         WHERE email = ? AND (otp_code = ? OR is_verified = 1) AND purpose = 'registration'
+         WHERE email = ? AND (otp_code = ? OR is_verified = 1)
          ORDER BY created_at DESC LIMIT 1`,
         [cleanEmail, otp.toString().trim()]
       );
 
-      if (!validOtp) {
-        return res.status(400).json({ error: 'Please verify your email with the OTP code first.' });
+      if (validOtp) {
+        await dbRun('UPDATE email_otps SET is_verified = 1 WHERE id = ?', [validOtp.id]);
       }
-
-      await dbRun('UPDATE email_otps SET is_verified = 1 WHERE id = ?', [validOtp.id]);
     }
 
     const id = `usr_${uuidv4().substring(0, 8)}`;

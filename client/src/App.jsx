@@ -22,10 +22,19 @@ const MainLayout = ({ onToggleSimulator }) => {
     statusNotification,
     summary,
     incomingRequests,
-    statusFeed
+    statusFeed,
+    currentUser,
+    loading,
+    allUsers
   } = useChat();
 
   const [userModalOpen, setUserModalOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (!loading && (!currentUser || allUsers.length === 0)) {
+      setUserModalOpen(true);
+    }
+  }, [loading, currentUser, allUsers?.length]);
 
   const friendsStatuses = statusFeed?.friendsStatuses || [];
   const unseenStatusCount = friendsStatuses.filter((g) => g.hasUnseen).length;

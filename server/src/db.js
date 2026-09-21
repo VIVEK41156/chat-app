@@ -162,86 +162,8 @@ export const initDB = async () => {
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_statuses_user ON statuses(user_id, created_at)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_status_views_status ON status_views(status_id, viewer_id)`);
 
-  // Seed sample users if empty
-  const userCount = await dbGet(`SELECT COUNT(*) as count FROM users`);
-  if (userCount.count === 0) {
-    console.log('[DB] Seeding starter users...');
-    const now = new Date().toISOString();
-    const starterUsers = [
-      {
-        id: 'usr_alice_01',
-        username: 'alice',
-        name: 'Alice Johnson',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-        status_message: 'Available | Building cool apps 🚀',
-        created_at: now
-      },
-      {
-        id: 'usr_bob_02',
-        username: 'bob',
-        name: 'Bob Smith',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-        status_message: 'At work 💻 | Ping for urgent matters',
-        created_at: now
-      },
-      {
-        id: 'usr_charlie_03',
-        username: 'charlie',
-        name: 'Charlie Davis',
-        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-        status_message: 'Coffee first, code later ☕',
-        created_at: now
-      },
-      {
-        id: 'usr_diana_04',
-        username: 'diana',
-        name: 'Diana Prince',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        status_message: 'Exploring the world 🌍',
-        created_at: now
-      }
-    ];
-
-    for (const u of starterUsers) {
-      await dbRun(
-        `INSERT INTO users (id, username, name, avatar, status_message, is_online, last_seen, created_at)
-         VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-        [u.id, u.username, u.name, u.avatar, u.status_message, now, u.created_at]
-      );
-    }
-
-    // Seed a friendship between Alice and Bob
-    const reqId = uuidv4();
-    await dbRun(
-      `INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at, updated_at)
-       VALUES (?, 'usr_alice_01', 'usr_bob_02', 'accepted', ?, ?)`,
-      [reqId, now, now]
-    );
-
-    // Seed a pending request from Charlie to Alice
-    const reqId2 = uuidv4();
-    await dbRun(
-      `INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at, updated_at)
-       VALUES (?, 'usr_charlie_03', 'usr_alice_01', 'pending', ?, ?)`,
-      [reqId2, now, now]
-    );
-
-    // Seed sample messages between Alice & Bob
-    const msg1 = uuidv4();
-    const msg2 = uuidv4();
-    await dbRun(
-      `INSERT INTO messages (id, sender_id, receiver_id, content, status, created_at, delivered_at, read_at)
-       VALUES (?, 'usr_bob_02', 'usr_alice_01', 'Hey Alice! Welcome to the new WhatsApp real-time chat app 👋', 'read', ?, ?, ?)`,
-      [msg1, now, now, now]
-    );
-    await dbRun(
-      `INSERT INTO messages (id, sender_id, receiver_id, content, status, created_at, delivered_at, read_at)
-       VALUES (?, 'usr_alice_01', 'usr_bob_02', 'Hey Bob! The single tick, double tick, and blue tick statuses work smoothly! 🚀', 'read', ?, ?, ?)`,
-      [msg2, now, now, now]
-    );
-
-    console.log('[DB] Seeding complete.');
-  }
+  // Database schema initialized
+  console.log('[DB] Database schema initialized successfully.');
 };
 
 export default db;

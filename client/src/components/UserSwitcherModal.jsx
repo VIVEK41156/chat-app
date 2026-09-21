@@ -52,6 +52,12 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
   const customAvatarInputRef = useRef(null);
   const profileAvatarInputRef = useRef(null);
 
+  useEffect(() => {
+    if (isOpen && (!allUsers || allUsers.length === 0 || !currentUser)) {
+      setTab('register');
+    }
+  }, [isOpen, allUsers?.length, currentUser]);
+
   const handleCustomAvatarSelected = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -262,61 +268,75 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
                 className="hidden"
                 onChange={handleDirectAvatarUpload}
               />
-              <p className="text-xs text-[#8696a0] mb-3">
-                Select an existing registered profile stored in the database:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {allUsers.map((user) => {
-                  const isCurrent = currentUser?.id === user.id;
+              {allUsers.length === 0 ? (
+                <div className="p-8 text-center text-[#8696a0] space-y-3">
+                  <p className="text-sm">No registered profiles yet in the database.</p>
+                  <button
+                    onClick={() => setTab('register')}
+                    className="px-4 py-2 bg-[#00a884] text-white text-xs font-semibold rounded-lg hover:bg-[#008f6f] transition"
+                  >
+                    Register First Account with Email OTP
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-[#8696a0] mb-3">
+                    Select an existing registered profile stored in the database:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {allUsers.map((user) => {
+                      const isCurrent = currentUser?.id === user.id;
 
-                  return (
-                    <div
-                      key={user.id}
-                      onClick={() => {
-                        selectUser(user);
-                        onClose();
-                      }}
-                      className={`p-3 rounded-xl border transition cursor-pointer flex items-center gap-3 ${
-                        isCurrent
-                          ? 'bg-[#00a884]/20 border-[#00a884] text-white'
-                          : 'bg-[#111b21] border-[#2a3942] text-[#e9edef] hover:border-[#00a884]/60 hover:bg-[#182229]'
-                      }`}
-                    >
-                      <div className="relative flex-shrink-0">
-                        <img
-                          src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`}
-                          alt={user.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        {isCurrent && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              profileAvatarInputRef.current?.click();
-                            }}
-                            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#00a884] text-white flex items-center justify-center hover:bg-[#008f6f] transition shadow border border-[#111b21]"
-                            title="Upload new profile picture"
-                          >
-                            <Camera size={10} />
-                          </button>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold truncate">{user.name}</p>
-                          {isCurrent && (
-                            <span className="text-[10px] bg-[#00a884] text-white font-bold px-1.5 py-0.5 rounded">
-                              Active
-                            </span>
-                          )}
+                      return (
+                        <div
+                          key={user.id}
+                          onClick={() => {
+                            selectUser(user);
+                            onClose();
+                          }}
+                          className={`p-3 rounded-xl border transition cursor-pointer flex items-center gap-3 ${
+                            isCurrent
+                              ? 'bg-[#00a884]/20 border-[#00a884] text-white'
+                              : 'bg-[#111b21] border-[#2a3942] text-[#e9edef] hover:border-[#00a884]/60 hover:bg-[#182229]'
+                          }`}
+                        >
+                          <div className="relative flex-shrink-0">
+                            <img
+                              src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`}
+                              alt={user.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                            {isCurrent && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  profileAvatarInputRef.current?.click();
+                                }}
+                                className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#00a884] text-white flex items-center justify-center hover:bg-[#008f6f] transition shadow border border-[#111b21]"
+                                title="Upload new profile picture"
+                              >
+                                <Camera size={10} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold truncate">{user.name}</p>
+                              {isCurrent && (
+                                <span className="text-[10px] bg-[#00a884] text-white font-bold px-1.5 py-0.5 rounded">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#8696a0] truncate">@{user.username}</p>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-[#8696a0] truncate">@{user.username}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

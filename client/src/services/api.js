@@ -75,6 +75,16 @@ export const api = {
     return res.data;
   },
 
+  cancelFriendRequest: async (request_id, user_id) => {
+    const res = await apiClient.post('/friends/cancel', { request_id, user_id });
+    return res.data;
+  },
+
+  removeFriend: async (user_id, friend_id) => {
+    const res = await apiClient.post('/friends/remove', { user_id, friend_id });
+    return res.data;
+  },
+
   // Messages
   getMessages: async (userId, friendId) => {
     const res = await apiClient.get(`/messages/${userId}/${friendId}`);

@@ -282,6 +282,67 @@ router.post('/respond', async (req, res) => {
   }
 });
 
+// Cancel a pending sent friend request
+router.post('/cancel', async (req, res) => {
+  try {
+    const { request_id, user_id } = req.body;
+    if (!request_id || !user_id) {
+      return res.status(400).json({ error: 'request_id and user_id are required.' });
+    }
+
+    const request = await dbGet('SELECT * FROM friend_requests WHERE id = ?', [request_id]);
+    if (!request) {
+      return res.status(404).json({ error: 'Friend request not found.' });
+    }
+
+    if (request.sender_id !== user_id) {
+      return res.status(403).json({ error: 'Only the sender can cancel this friend request.' });
+    }
+
+    await dbRun('DELETE FROM friend_requests WHERE id = ?', [request_id]);
+
+    const io = getIO();
+    if (io) {
+      io.to(request.receiver_id).emit('friend:request_rejected', {
+        requestId: request_id,
+        receiverId: request.receiver_id
+      });
+    }
+
+    return res.json({ message: 'Friend request canceled successfully.', requestId: request_id });
+  } catch (err) {
+    console.error('Cancel friend request error:', err);
+    return res.status(500).json({ error: 'Failed to cancel friend request.' });
+  }
+});
+
+// Remove a confirmed friend
+router.post('/remove', async (req, res) => {
+  try {
+    const { user_id, friend_id } = req.body;
+    if (!user_id || !friend_id) {
+      return res.status(400).json({ error: 'user_id and friend_id are required.' });
+    }
+
+    await dbRun(
+      `DELETE FROM friend_requests 
+       WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)`,
+      [user_id, friend_id, friend_id, user_id]
+    );
+
+    const io = getIO();
+    if (io) {
+      io.to(friend_id).emit('friend:request_rejected', { friendId: user_id });
+      io.to(user_id).emit('friend:request_rejected', { friendId: friend_id });
+    }
+
+    return res.json({ message: 'Friend removed successfully.' });
+  } catch (err) {
+    console.error('Remove friend error:', err);
+    return res.status(500).json({ error: 'Failed to remove friend.' });
+  }
+});
+
 // Update Disappearing Messages Timer for friendship
 router.post('/disappearing-timer', async (req, res) => {
   try {

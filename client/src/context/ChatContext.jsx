@@ -988,6 +988,33 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
   };
 
+  // Cancel pending sent friend request
+  const cancelFriendRequest = async (requestId) => {
+    if (!currentUser || !requestId) return;
+    try {
+      await api.cancelFriendRequest(requestId, currentUser.id);
+      showToast('Friend request canceled', 'info');
+      await refreshData(currentUser.id);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to cancel request', 'error');
+    }
+  };
+
+  // Remove confirmed friend
+  const removeFriend = async (friendId) => {
+    if (!currentUser || !friendId) return;
+    try {
+      await api.removeFriend(currentUser.id, friendId);
+      if (activeFriend?.id === friendId) {
+        setActiveFriend(null);
+      }
+      showToast('Friend removed', 'info');
+      await refreshData(currentUser.id);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to remove friend', 'error');
+    }
+  };
+
   // Register new user
   const registerUser = async (formData) => {
     try {
@@ -1146,6 +1173,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         emitTyping,
         sendFriendRequest,
         respondFriendRequest,
+        cancelFriendRequest,
+        removeFriend,
         registerUser,
         uploadCustomAvatar,
         updateProfile,

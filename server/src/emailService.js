@@ -11,19 +11,28 @@ let transporter = null;
 let activeGmailUser = '';
 
 export const initEmailTransporter = () => {
-  const user = process.env.GMAIL_USER || 'vivekparri41156@gmail.com';
-  const pass = process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || 'kjxh oong gvdh dfyu';
+  const user = (process.env.GMAIL_USER || 'vivekparri41156@gmail.com').trim();
+  const rawPass = process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD || 'kjxhoonggvdhdfyu';
+  const pass = rawPass.replace(/\s+/g, '').trim();
 
   if (user && pass) {
     activeGmailUser = user;
     transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // Direct SSL
       auth: {
         user,
         pass
-      }
+      },
+      pool: true, // Reuse pooled SMTP connections for instant dispatch
+      maxConnections: 5,
+      maxMessages: 100,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 7000
     });
-    console.log(`[Email] Gmail SMTP configured for: ${user}`);
+    console.log(`[Email] Gmail SMTP configured with connection pooling for: ${user}`);
   } else {
     console.log('[Email] No Gmail credentials found. Running in Mock / Dev Preview Mode.');
   }

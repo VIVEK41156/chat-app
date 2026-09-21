@@ -47,8 +47,8 @@ router.post('/send-otp', async (req, res) => {
 
     if (recentOtp) {
       const diffMs = Date.now() - new Date(recentOtp.created_at).getTime();
-      if (diffMs < 45000) { // 45 seconds cooldown
-        const waitSec = Math.ceil((45000 - diffMs) / 1000);
+      if (diffMs < 12000) { // 12 seconds cooldown
+        const waitSec = Math.ceil((12000 - diffMs) / 1000);
         return res.status(429).json({ error: `Please wait ${waitSec}s before requesting a new OTP.` });
       }
     }
@@ -72,15 +72,16 @@ router.post('/send-otp', async (req, res) => {
       [id, cleanEmail, otpCode, purpose, expiresAt, createdIso]
     );
 
-    // Send email via Gmail SMTP / Email Provider
-    const emailResult = await sendOtpEmail(cleanEmail, otpCode, recipientName);
+    // Asynchronously dispatch Gmail SMTP in background (instant UI response!)
+    sendOtpEmail(cleanEmail, otpCode, recipientName).catch((err) => {
+      console.error('[Email Dispatch Error]', err);
+    });
 
     return res.json({
+      success: true,
       message: `Verification code sent to ${cleanEmail}`,
       email: cleanEmail,
-      expiresInMinutes: 5,
-      // Provide demo OTP preview if running without SMTP credentials for instant frictionless testing
-      demoOtp: emailResult.mode === 'dev_preview' || !process.env.GMAIL_USER ? otpCode : undefined
+      expiresInMinutes: 5
     });
   } catch (err) {
     console.error('Send OTP error:', err);

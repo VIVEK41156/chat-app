@@ -84,11 +84,21 @@ export const ChatArea = () => {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const [showScreenChoiceModal, setShowScreenChoiceModal] = useState(false);
   const [selectedTimer, setSelectedTimer] = useState(0);
 
   const [pendingFile, setPendingFile] = useState(null);
   const [fileCaption, setFileCaption] = useState('');
   const [previewModalImage, setPreviewModalImage] = useState(null);
+
+  const handleOpenScreenShare = () => {
+    const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+    if (isMobile) {
+      setShowScreenChoiceModal(true);
+    } else {
+      startScreenShare(activeFriend, 'screen');
+    }
+  };
 
   // Message Context & Action states
   const [selectedMessageForAction, setSelectedMessageForAction] = useState(null);
@@ -454,9 +464,9 @@ export const ChatArea = () => {
         <div className="flex items-center gap-0.5 sm:gap-1 text-[#aebac1] relative flex-shrink-0" ref={moreMenuRef}>
           {/* Screen Share Button */}
           <button
-            onClick={() => startScreenShare(activeFriend)}
+            onClick={handleOpenScreenShare}
             className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] text-[#00a884] hover:text-[#25D366] transition flex items-center justify-center"
-            title="Share Screen & Video Audio (Select Window or Tab)"
+            title="Share Screen or Live Video (Mobile & Desktop)"
           >
             <MonitorUp size={18} />
           </button>
@@ -472,9 +482,9 @@ export const ChatArea = () => {
 
           {/* Video Call Demo Button */}
           <button
-            onClick={() => showToast('Video calling ready! Use Screen Share to share video and sound with your friend.', 'info')}
+            onClick={handleOpenScreenShare}
             className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition hidden xs:flex items-center justify-center"
-            title="Start video call"
+            title="Start video / screen share"
           >
             <Video size={18} />
           </button>
@@ -504,7 +514,7 @@ export const ChatArea = () => {
               <button
                 onClick={() => {
                   setShowMoreMenu(false);
-                  startScreenShare(activeFriend);
+                  handleOpenScreenShare();
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#2a3942] text-[#00a884] font-semibold text-left transition"
               >
@@ -869,7 +879,7 @@ export const ChatArea = () => {
           <button
             onClick={() => {
               setShowAttachMenu(false);
-              startScreenShare(activeFriend);
+              handleOpenScreenShare();
             }}
             className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#2a3942] transition text-[#00a884] text-xs font-semibold"
           >
@@ -1377,6 +1387,87 @@ export const ChatArea = () => {
                 <Check size={14} /> Save Changes
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Screen Share & Live Video Chooser Modal */}
+      {showScreenChoiceModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 backdrop-blur-sm animate-fade-in select-none"
+          onClick={() => setShowScreenChoiceModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#202c33] border-t sm:border border-[#2a3942] rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-slide-up sm:animate-none"
+          >
+            <div className="flex items-center justify-between border-b border-[#2a3942] pb-3">
+              <div className="flex items-center gap-2 text-[#00a884]">
+                <MonitorUp size={20} />
+                <h3 className="text-sm font-semibold text-[#e9edef]">Live Video & Screen Share</h3>
+              </div>
+              <button
+                onClick={() => setShowScreenChoiceModal(false)}
+                className="text-[#8696a0] hover:text-white p-1 rounded-full hover:bg-[#2a3942]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#8696a0] leading-relaxed">
+              Choose how you want to share with <strong className="text-[#e9edef]">{activeFriend?.name}</strong>:
+            </p>
+
+            <div className="space-y-2.5">
+              {/* Option 1: Share Mobile Screen */}
+              <button
+                onClick={() => {
+                  setShowScreenChoiceModal(false);
+                  startScreenShare(activeFriend, 'screen');
+                }}
+                className="w-full flex items-center gap-3.5 p-3.5 bg-[#111b21] hover:bg-[#2a3942] border border-[#2a3942] hover:border-[#00a884]/50 rounded-xl text-left transition group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-[#00a884]/20 text-[#00a884] group-hover:bg-[#00a884] group-hover:text-white flex items-center justify-center flex-shrink-0 transition">
+                  <MonitorUp size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-[#e9edef] group-hover:text-[#00a884] transition">
+                    Share Mobile Screen
+                  </p>
+                  <p className="text-[11px] text-[#8696a0] leading-snug mt-0.5">
+                    Cast your phone screen, browser tabs, movies, and apps
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Live Camera Video Share */}
+              <button
+                onClick={() => {
+                  setShowScreenChoiceModal(false);
+                  startScreenShare(activeFriend, 'camera');
+                }}
+                className="w-full flex items-center gap-3.5 p-3.5 bg-[#111b21] hover:bg-[#2a3942] border border-[#2a3942] hover:border-[#bf59cf]/50 rounded-xl text-left transition group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-[#bf59cf]/20 text-[#bf59cf] group-hover:bg-[#bf59cf] group-hover:text-white flex items-center justify-center flex-shrink-0 transition">
+                  <Video size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-[#e9edef] group-hover:text-[#bf59cf] transition">
+                    Share Live Camera Video
+                  </p>
+                  <p className="text-[11px] text-[#8696a0] leading-snug mt-0.5">
+                    Stream real-time front or rear camera with clear voice audio
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowScreenChoiceModal(false)}
+              className="w-full py-2.5 text-center text-xs text-[#8696a0] hover:text-[#e9edef] font-medium transition"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

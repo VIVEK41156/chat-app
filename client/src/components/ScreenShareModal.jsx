@@ -13,7 +13,9 @@ import {
   Radio,
   ExternalLink,
   Sparkles,
-  Loader2
+  Loader2,
+  Camera,
+  SwitchCamera
 } from 'lucide-react';
 
 export const ScreenShareModal = () => {
@@ -26,7 +28,9 @@ export const ScreenShareModal = () => {
     screenAudioVolume,
     setScreenAudioVolume,
     isScreenAudioMuted,
-    toggleScreenAudioMute
+    toggleScreenAudioMute,
+    flipCamera,
+    currentFacingMode
   } = useChat();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -118,24 +122,30 @@ export const ScreenShareModal = () => {
         )}
       >
         {/* Top Screen Share Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center flex-shrink-0">
-              <Tv size={18} />
+              {activeScreenShare.shareType === 'camera' ? <Camera size={18} /> : <Tv size={18} />}
             </div>
             <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-xs sm:text-sm font-bold text-[#e9edef] truncate">
                   {isSharing
-                    ? (`You are sharing screen with ${activeScreenShare.peerName}`)
-                    : (`${activeScreenShare.peerName}'s Screen`)}
+                    ? (activeScreenShare.shareType === 'camera'
+                        ? `Sharing Live Video with ${activeScreenShare.peerName}`
+                        : `Sharing screen with ${activeScreenShare.peerName}`)
+                    : (activeScreenShare.shareType === 'camera'
+                        ? `${activeScreenShare.peerName}'s Live Video`
+                        : `${activeScreenShare.peerName}'s Screen`)}
                 </span>
-                <span className="flex items-center gap-1 text-[10px] bg-[#00a884]/20 text-[#00a884] px-2 py-0.5 rounded-full font-semibold border border-[#00a884]/30">
+                <span className="flex items-center gap-1 text-[10px] bg-[#00a884]/20 text-[#00a884] px-2 py-0.5 rounded-full font-semibold border border-[#00a884]/30 flex-shrink-0">
                   <Radio size={10} className="animate-pulse" /> LIVE
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[11px] text-[#8696a0]">
-                {activeScreenShare.hasAudio ? (
+                {activeScreenShare.shareType === 'camera' ? (
+                  <span className="text-[#00a884]">Real-time camera video stream</span>
+                ) : activeScreenShare.hasAudio ? (
                   <span className="flex items-center gap-1 text-[#25D366]">
                     <Music size={12} /> System & Video Audio Active
                   </span>
@@ -147,6 +157,18 @@ export const ScreenShareModal = () => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Flip Camera Button (Only for sharing user) */}
+            {isSharing && (
+              <button
+                onClick={flipCamera}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#111b21] hover:bg-[#2a3942] text-[#00a884] hover:text-[#25D366] border border-[#00a884]/40 text-xs font-semibold transition"
+                title="Switch between front and rear camera"
+              >
+                <SwitchCamera size={15} />
+                <span className="hidden xs:inline">Flip Cam</span>
+              </button>
+            )}
+
             {!isSharing && (
               <div className="hidden xs:flex items-center gap-1.5 bg-[#111b21] px-2.5 py-1 rounded-full border border-[#2a3942]">
                 <button
@@ -204,7 +226,7 @@ export const ScreenShareModal = () => {
               title="Stop Sharing"
             >
               <MonitorOff size={14} />
-              <span className="hidden xs:inline">{isSharing ? 'Stop Sharing' : 'Leave'}</span>
+              <span className="hidden xs:inline">{isSharing ? 'Stop' : 'Leave'}</span>
             </button>
           </div>
         </div>
@@ -223,7 +245,7 @@ export const ScreenShareModal = () => {
           {isReceiving && !currentStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#111b21]/90 text-[#e9edef] z-20">
               <Loader2 size={36} className="text-[#00a884] animate-spin" />
-              <p className="text-sm font-medium">Connecting to {activeScreenShare.peerName}&apos;s screen stream...</p>
+              <p className="text-sm font-medium">Connecting to {activeScreenShare.peerName}&apos;s stream...</p>
               <p className="text-xs text-[#8696a0]">Establishing end-to-end WebRTC peer link</p>
             </div>
           )}
@@ -232,7 +254,11 @@ export const ScreenShareModal = () => {
           {isSharing && (
             <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-xs text-white flex items-center gap-2 shadow z-10">
               <span className="w-2 h-2 rounded-full bg-[#25D366] animate-ping" />
-              <span>You are presenting your screen & video sound</span>
+              <span>
+                {activeScreenShare.shareType === 'camera'
+                  ? `Live camera video active (${currentFacingMode === 'user' ? 'Front' : 'Rear'})`
+                  : 'You are presenting your screen & video sound'}
+              </span>
             </div>
           )}
 

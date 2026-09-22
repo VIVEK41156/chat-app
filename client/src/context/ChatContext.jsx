@@ -508,7 +508,10 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     return pc;
   };
 
-  const startScreenShare = async (friend = null) => {
+  const [currentFacingMode, setCurrentFacingMode] = useState('user');
+  const currentFacingModeRef = useRef('user');
+
+  const startScreenShare = async (friend = null, preferredMode = null) => {
     const target = friend || activeFriendRef.current;
     if (!currentUser || !target) {
       showToast('Please open a chat to share screen', 'info');
@@ -519,27 +522,80 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       return;
     }
 
+    const isMobileDevice = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+    const hasGetDisplayMedia = typeof navigator !== 'undefined' && 
+                               Boolean(navigator?.mediaDevices?.getDisplayMedia);
+
+    let displayStream = null;
+    let shareType = preferredMode === 'camera' ? 'camera' : 'screen';
+
     try {
-      let displayStream;
-      try {
-        // Native browser picker (Window, Entire Screen, or Browser Tab)
-        displayStream = await navigator.mediaDevices.getDisplayMedia({
+      if (preferredMode === 'camera') {
+        // Direct Camera Request
+        shareType = 'camera';
+        displayStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            cursor: 'always'
+            facingMode: currentFacingModeRef.current || 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           },
           audio: true
         });
-      } catch (audioErr) {
-        console.warn('getDisplayMedia with audio failed, falling back to video only:', audioErr);
-        displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: 'always'
+      } else if (hasGetDisplayMedia) {
+        // Device supports getDisplayMedia
+        try {
+          if (isMobileDevice) {
+            // Mobile Android Chrome only accepts simple video constraint
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true
+            });
+          } else {
+            // Desktop with sound capture
+            try {
+              displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: 'always' },
+                audio: true
+              });
+            } catch (audioErr) {
+              displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true
+              });
+            }
           }
+        } catch (displayErr) {
+          console.warn('getDisplayMedia attempt failed:', displayErr);
+          if (displayErr.name === 'NotAllowedError') {
+            // User cancelled permission or picker
+            return;
+          }
+          // On mobile, if screen capture fails or is blocked, gracefully fall back to live camera
+          if (isMobileDevice || !navigator.mediaDevices?.getDisplayMedia) {
+            showToast('Screen recording restricted on device. Switching to Live Camera Video...', 'info');
+            shareType = 'camera';
+            displayStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: currentFacingModeRef.current || 'user'
+              },
+              audio: true
+            });
+          } else {
+            throw displayErr;
+          }
+        }
+      } else {
+        // Mobile browser without getDisplayMedia API (e.g. iOS Safari / older mobile WebViews)
+        showToast('Mobile screen share not available in this browser. Starting Live Video Stream...', 'info');
+        shareType = 'camera';
+        displayStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: currentFacingModeRef.current || 'user'
+          },
+          audio: true
         });
       }
 
       if (!displayStream || displayStream.getVideoTracks().length === 0) {
-        showToast('No screen selected', 'info');
+        showToast('No video or screen stream available', 'info');
         return;
       }
 
@@ -560,7 +616,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         peerName: target.name,
         peerAvatar: target.avatar,
         isSharing: true,
-        hasAudio: hasDisplayAudio
+        hasAudio: hasDisplayAudio,
+        shareType // 'screen' | 'camera'
       };
 
       setActiveScreenShare(shareInfo);
@@ -583,17 +640,68 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           fromUserName: currentUser.name,
           fromUserAvatar: currentUser.avatar,
           offer,
-          hasAudio: hasDisplayAudio
+          hasAudio: hasDisplayAudio,
+          shareType
         });
       }
 
-      showToast(`Sharing screen with ${target.name}${hasDisplayAudio ? ' (with audio)' : ''}`, 'success');
+      showToast(
+        shareType === 'camera'
+          ? `Sharing Live Video with ${target.name}`
+          : `Sharing screen with ${target.name}${hasDisplayAudio ? ' (with audio)' : ''}`,
+        'success'
+      );
     } catch (err) {
       console.error('Screen sharing error:', err);
       if (err.name !== 'NotAllowedError') {
-        showToast('Could not start screen sharing: ' + (err.message || 'Permission denied'), 'error');
+        showToast('Could not start screen / video sharing: ' + (err.message || 'Permission denied'), 'error');
       }
       stopScreenShare();
+    }
+  };
+
+  const flipCamera = async () => {
+    if (screenShareStateRef.current !== 'sharing' || !screenStreamRef.current) return;
+    const newFacing = currentFacingMode === 'user' ? 'environment' : 'user';
+    try {
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: newFacing } },
+          audio: false
+        });
+      } catch (exactErr) {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: newFacing },
+          audio: false
+        });
+      }
+
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (newVideoTrack && screenPeerConnectionRef.current) {
+        const senders = screenPeerConnectionRef.current.getSenders();
+        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack);
+        }
+
+        // Stop old video track
+        const oldVideoTrack = screenStreamRef.current.getVideoTracks()[0];
+        if (oldVideoTrack) oldVideoTrack.stop();
+
+        // Combine new video track with existing audio tracks
+        const audioTracks = screenStreamRef.current.getAudioTracks();
+        const updatedStream = new MediaStream([newVideoTrack, ...audioTracks]);
+
+        screenStreamRef.current = updatedStream;
+        setScreenLocalStream(updatedStream);
+        setCurrentFacingMode(newFacing);
+        currentFacingModeRef.current = newFacing;
+        showToast(`Switched to ${newFacing === 'user' ? 'front' : 'rear'} camera`, 'info');
+      }
+    } catch (err) {
+      console.warn('Failed to switch camera:', err);
+      showToast('Could not switch camera', 'error');
     }
   };
 
@@ -1731,7 +1839,9 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         screenAudioVolume,
         setScreenAudioVolume,
         isScreenAudioMuted,
-        toggleScreenAudioMute
+        toggleScreenAudioMute,
+        flipCamera,
+        currentFacingMode
       }}
     >
       {children}

@@ -497,6 +497,13 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       localStream.getTracks().forEach((track) => {
         pc.addTrack(track, localStream);
       });
+    } else {
+      try {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      } catch (e) {
+        console.warn('[ScreenShare] Transceiver add warning:', e);
+      }
     }
 
     pc.ontrack = (event) => {
@@ -1159,7 +1166,10 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           screenIceQueueRef.current = [];
         }
 
-        const answer = await pc.createAnswer();
+        const answer = await pc.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true
+        });
         await pc.setLocalDescription(answer);
 
         socket.emit('screenshare:answer', {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../context/ChatContext';
 import { MessageTicks } from './MessageTicks';
 import { WallpaperModal } from './WallpaperModal';
+import { Avatar } from './Avatar';
 import {
   Send,
   Smile,
@@ -196,6 +197,7 @@ export const ChatArea = () => {
     setShowActionModal(false);
   };
 
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -225,7 +227,18 @@ export const ChatArea = () => {
   }, []);
 
   const scrollToBottom = (behavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
+    if (messagesContainerRef.current) {
+      if (behavior === 'auto') {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      } else {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior });
+    }
   };
 
   useEffect(() => {
@@ -398,25 +411,25 @@ export const ChatArea = () => {
             {/* Connected Dual Circular Avatars */}
             <div className="relative flex items-center -space-x-3 sm:-space-x-3.5 flex-shrink-0">
               {/* Friend Circular Avatar */}
-              <div className="relative z-10">
-                <img
-                  src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
-                  alt={activeFriend.name}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-[#00a884] group-hover:ring-[#25D366] transition bg-[#111b21]"
-                />
-                {activeFriend.is_online ? (
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-[#25D366] rounded-full border-2 border-[#202c33]" />
-                ) : null}
-              </div>
+              <Avatar
+                src={activeFriend.avatar}
+                name={activeFriend.name}
+                username={activeFriend.username}
+                size="md"
+                ringColor="ring-2 ring-[#00a884] group-hover:ring-[#25D366] transition"
+                showOnline={true}
+                isOnline={activeFriend.is_online}
+              />
 
               {/* Current User Circular Avatar Badge */}
-              <div className="relative z-20" title={`You (${currentUser?.name || 'You'})`}>
-                <img
-                  src={currentUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.username}`}
-                  alt={currentUser?.name || 'You'}
-                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover ring-2 ring-[#25D366] border-2 border-[#202c33] bg-[#111b21] shadow-md"
-                />
-              </div>
+              <Avatar
+                src={currentUser?.avatar}
+                name={currentUser?.name}
+                username={currentUser?.username}
+                size="xs"
+                ringColor="ring-2 ring-[#25D366] border-2 border-[#202c33]"
+                className="shadow-md"
+              />
             </div>
 
             <div className="flex flex-col min-w-0 flex-1">
@@ -568,7 +581,8 @@ export const ChatArea = () => {
 
       {/* Messages Stream */}
       <div
-        className={`flex-1 overflow-y-auto px-2.5 sm:px-12 py-3 sm:py-4 space-y-2.5 overscroll-contain ${chatWallpaper?.className || 'whatsapp-chat-bg bg-[#0b141a]'}`}
+        ref={messagesContainerRef}
+        className={`flex-1 min-h-0 overflow-y-auto px-2.5 sm:px-12 py-3 sm:py-4 space-y-2.5 overscroll-contain ${chatWallpaper?.className || 'whatsapp-chat-bg bg-[#0b141a]'}`}
         style={chatWallpaper?.style || {}}
       >
         {/* Disappearing Messages Active Banner */}
@@ -620,13 +634,16 @@ export const ChatArea = () => {
             >
               {/* Friend Circular Profile Picture (Left of message) */}
               {!isFromMe && (
-                <img
-                  src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
-                  alt={activeFriend.name}
-                  title={activeFriend.name}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-[#00a884]/40 flex-shrink-0 mb-0.5 shadow select-none cursor-pointer hover:ring-[#00a884] transition"
-                  onClick={() => setShowContactInfo(true)}
-                />
+                <div onClick={() => setShowContactInfo(true)} className="flex-shrink-0 mb-0.5 cursor-pointer">
+                  <Avatar
+                    src={activeFriend.avatar}
+                    name={activeFriend.name}
+                    username={activeFriend.username}
+                    size="sm"
+                    ringColor="ring-2 ring-[#00a884]/40 hover:ring-[#00a884] transition"
+                    className="shadow select-none"
+                  />
+                </div>
               )}
 
               <div
@@ -767,12 +784,16 @@ export const ChatArea = () => {
 
               {/* Current User Circular Profile Picture (Right of message) */}
               {isFromMe && (
-                <img
-                  src={currentUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.username}`}
-                  alt={currentUser?.name || 'You'}
-                  title={`${currentUser?.name || 'You'} (You)`}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-[#25D366]/40 flex-shrink-0 mb-0.5 shadow select-none"
-                />
+                <div className="flex-shrink-0 mb-0.5">
+                  <Avatar
+                    src={currentUser?.avatar}
+                    name={currentUser?.name}
+                    username={currentUser?.username}
+                    size="sm"
+                    ringColor="ring-2 ring-[#25D366]/40"
+                    className="shadow select-none"
+                  />
+                </div>
               )}
             </div>
           );
@@ -781,10 +802,13 @@ export const ChatArea = () => {
         {/* Dynamic Typing Indicator */}
         {isFriendTyping && (
           <div className="flex items-end gap-1.5 sm:gap-2 justify-start animate-fade-in">
-            <img
-              src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
-              alt={activeFriend.name}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-[#25D366] flex-shrink-0 mb-0.5 shadow"
+            <Avatar
+              src={activeFriend.avatar}
+              name={activeFriend.name}
+              username={activeFriend.username}
+              size="sm"
+              ringColor="ring-2 ring-[#25D366]"
+              className="flex-shrink-0 mb-0.5 shadow"
             />
             <div className="bg-[#202c33] text-[#25D366] px-4 py-2.5 rounded-lg bubble-in rounded-tl-none flex items-center gap-2 shadow">
               <span className="text-xs font-medium">{activeFriend.name} is typing</span>
@@ -1099,10 +1123,13 @@ export const ChatArea = () => {
             </div>
 
             <div className="flex flex-col items-center text-center">
-              <img
-                src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
-                alt={activeFriend.name}
-                className="w-24 h-24 rounded-full object-cover ring-4 ring-[#00a884]/30 mb-3"
+              <Avatar
+                src={activeFriend.avatar}
+                name={activeFriend.name}
+                username={activeFriend.username}
+                size="2xl"
+                ringColor="ring-4 ring-[#00a884]/30"
+                className="mb-3"
               />
               <h4 className="text-base font-semibold text-[#e9edef]">{activeFriend.name}</h4>
               <p className="text-xs text-[#8696a0]">@{activeFriend.username}</p>

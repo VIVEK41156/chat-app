@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useChat } from '../context/ChatContext';
+import { Avatar } from './Avatar';
 import {
   Phone,
   PhoneOff,
@@ -67,10 +68,13 @@ export const VoiceCallModal = () => {
               </>
             )}
 
-            <img
-              src={activeCall.contactAvatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=friend'}
-              alt={activeCall.contactName}
-              className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover ring-4 ring-[#00a884] shadow-2xl relative z-10 bg-[#202c33]"
+            <Avatar
+              src={activeCall.contactAvatar}
+              name={activeCall.contactName}
+              username={activeCall.contactUsername || activeCall.contactName}
+              size="2xl"
+              ringColor="ring-4 ring-[#00a884]"
+              className="shadow-2xl relative z-10 bg-[#202c33]"
             />
           </div>
 

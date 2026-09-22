@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useChat } from '../context/ChatContext';
+import { Avatar } from './Avatar';
 import {
   UserPlus,
   UserCheck,
@@ -199,16 +200,14 @@ export const FriendsTab = () => {
                     onClick={() => openChatWithFriend(friend)}
                     className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
                   >
-                    <div className="relative flex-shrink-0">
-                      <img
-                        src={friend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${friend.username}`}
-                        alt={friend.name}
-                        className="w-11 h-11 rounded-full object-cover"
-                      />
-                      {friend.is_online ? (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#25D366] rounded-full border-2 border-[#111b21]" />
-                      ) : null}
-                    </div>
+                    <Avatar
+                      src={friend.avatar}
+                      name={friend.name}
+                      username={friend.username}
+                      size="md"
+                      showOnline={true}
+                      isOnline={friend.is_online}
+                    />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -284,10 +283,11 @@ export const FriendsTab = () => {
                     className="p-3 bg-[#202c33] rounded-xl border border-[#00a884]/30 shadow-md flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={req.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${req.username}`}
-                        alt={req.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      <Avatar
+                        src={req.avatar}
+                        name={req.name}
+                        username={req.username}
+                        size="md"
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-[#e9edef] truncate">{req.name}</p>
@@ -339,10 +339,11 @@ export const FriendsTab = () => {
                     className="p-3 bg-[#202c33]/70 rounded-xl border border-[#2a3942]/60 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={req.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${req.username}`}
-                        alt={req.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      <Avatar
+                        src={req.avatar}
+                        name={req.name}
+                        username={req.username}
+                        size="md"
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-[#e9edef] truncate">{req.name}</p>
@@ -412,16 +413,14 @@ export const FriendsTab = () => {
                     className="flex items-center justify-between p-3 hover:bg-[#202c33]/60 rounded-xl transition my-0.5"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="relative flex-shrink-0">
-                        <img
-                          src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`}
-                          alt={user.name}
-                          className="w-11 h-11 rounded-full object-cover"
-                        />
-                        {user.is_online ? (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#25D366] rounded-full border-2 border-[#111b21]" />
-                        ) : null}
-                      </div>
+                      <Avatar
+                        src={user.avatar}
+                        name={user.name}
+                        username={user.username}
+                        size="md"
+                        showOnline={true}
+                        isOnline={user.is_online}
+                      />
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">

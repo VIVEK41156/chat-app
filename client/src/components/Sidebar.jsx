@@ -4,6 +4,7 @@ import { MessageTicks } from './MessageTicks';
 import { StatusTab } from './StatusTab';
 import { StatusViewerModal } from './StatusViewerModal';
 import { WallpaperModal } from './WallpaperModal';
+import { Avatar } from './Avatar';
 import {
   MessageSquare,
   Users,
@@ -108,21 +109,18 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
             className="relative cursor-pointer group"
             title="Click to Open Profile Settings"
           >
-            <img
-              src={currentUser?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=me'}
-              alt={currentUser?.name}
-              className={`w-10 h-10 rounded-full object-cover ring-2 ${
-                isUploadingAvatar ? 'animate-pulse ring-yellow-400' : 'ring-[#00a884]'
-              }`}
+            <Avatar
+              src={currentUser?.avatar}
+              name={currentUser?.name}
+              username={currentUser?.username}
+              size="md"
+              ringColor={isUploadingAvatar ? 'ring-2 ring-yellow-400 animate-pulse' : 'ring-2 ring-[#00a884] group-hover:ring-[#25D366] transition'}
+              showOnline={true}
+              isOnline={currentUser?.is_online}
             />
-            <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-white">
+            <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-white pointer-events-none">
               <Camera size={14} />
             </div>
-            <span
-              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#202c33] ${
-                currentUser?.is_online ? 'bg-[#25D366]' : 'bg-[#8696a0]'
-              }`}
-            />
           </div>
 
           <div
@@ -290,16 +288,15 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
                       }`}
                     >
                       {/* Avatar & Online Dot */}
-                      <div className="relative flex-shrink-0">
-                        <img
-                          src={friend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${friend.username}`}
-                          alt={friend.name}
-                          className="w-12 h-12 rounded-full object-cover"
-                        />
-                        {friend.is_online ? (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#25D366] rounded-full border-2 border-[#111b21]" title="Online" />
-                        ) : null}
-                      </div>
+                      <Avatar
+                        src={friend.avatar}
+                        name={friend.name}
+                        username={friend.username}
+                        size="lg"
+                        showOnline={true}
+                        isOnline={friend.is_online}
+                        ringColor={isSelected ? 'ring-2 ring-[#00a884]' : ''}
+                      />
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">

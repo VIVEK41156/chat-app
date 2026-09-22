@@ -37,34 +37,54 @@ export const ScreenShareModal = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const containerRef = useRef(null);
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
 
   const isSharing = screenShareState === 'sharing';
   const isReceiving = screenShareState === 'receiving';
   const isActive = (isSharing || isReceiving) && activeScreenShare;
 
-  // Reactively attach the active MediaStream to the video element
+  // Reactively attach the active MediaStream to the video and audio elements
   useEffect(() => {
     const videoEl = videoRef.current;
+    const audioEl = audioRef.current;
     if (!videoEl) return;
 
     const stream = isSharing ? screenLocalStream : screenRemoteStream;
 
     if (stream) {
-      console.log('[ScreenShareModal] Attaching stream to video element:', stream.id, 'Tracks:', stream.getTracks());
+      console.log('[ScreenShareModal] Attaching stream:', stream.id, 'Tracks:', stream.getTracks());
+      
+      // Attach to video element
       videoEl.srcObject = stream;
-      videoEl.muted = isSharing ? true : isScreenAudioMuted;
-      videoEl.volume = isSharing ? 0 : (isScreenAudioMuted ? 0 : screenAudioVolume);
+      videoEl.muted = true; // Video element is always muted so mobile autoplay policies never block video frames
+      
+      const playVideo = () => {
+        videoEl.play().catch((err) => {
+          console.warn('[ScreenShareModal] Video play error:', err);
+        });
+      };
+      playVideo();
 
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('[ScreenShareModal] Video auto-play catch:', err);
+      // For receiver: attach audio to dedicated audio element
+      if (audioEl && !isSharing) {
+        audioEl.srcObject = stream;
+        audioEl.volume = isScreenAudioMuted ? 0 : screenAudioVolume;
+        audioEl.play().catch((err) => {
+          console.warn('[ScreenShareModal] Audio auto-play catch (will play on tap):', err);
         });
       }
     } else {
       videoEl.srcObject = null;
+      if (audioEl) audioEl.srcObject = null;
     }
   }, [screenRemoteStream, screenLocalStream, isSharing, isReceiving, isScreenAudioMuted, screenAudioVolume, isActive]);
+
+  // Sync audio volume changes
+  useEffect(() => {
+    if (audioRef.current && !isSharing) {
+      audioRef.current.volume = isScreenAudioMuted ? 0 : screenAudioVolume;
+    }
+  }, [screenAudioVolume, isScreenAudioMuted, isSharing]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -232,12 +252,30 @@ export const ScreenShareModal = () => {
         </div>
 
         {/* Center Main Screen Video Viewport */}
-        <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+        <div
+          className="relative flex-1 bg-black flex items-center justify-center overflow-hidden cursor-pointer"
+          onClick={() => {
+            if (audioRef.current && !isSharing) {
+              audioRef.current.play().catch(() => {});
+            }
+          }}
+        >
+          {/* Receiver Audio Playback Element */}
+          <audio
+            ref={audioRef}
+            autoPlay
+            playsInline
+            className="hidden"
+          />
+
           <video
             ref={videoRef}
             autoPlay
             playsInline
-            muted={isSharing ? true : isScreenAudioMuted}
+            muted={true}
+            onLoadedMetadata={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
             className="w-full h-full object-contain"
           />
 

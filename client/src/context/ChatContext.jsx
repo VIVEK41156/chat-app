@@ -12,8 +12,21 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' }
-  ]
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ],
+  iceCandidatePoolSize: 10
 };
 
 export const ChatProvider = ({ children, initialUserId = null }) => {
@@ -465,6 +478,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     activeScreenShareRef.current = null;
   }, []);
 
+  const screenRemoteStreamRef = useRef(null);
+
   const createScreenPeerConnection = (targetPeerId, localStream = null) => {
     if (screenPeerConnectionRef.current) {
       try {
@@ -473,6 +488,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       screenPeerConnectionRef.current = null;
     }
     screenIceQueueRef.current = [];
+    screenRemoteStreamRef.current = new MediaStream();
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
     screenPeerConnectionRef.current = pc;
@@ -484,11 +500,36 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
 
     pc.ontrack = (event) => {
-      console.log('[ScreenShare] Remote track received:', event.streams);
-      if (event.streams && event.streams[0]) {
-        setScreenRemoteStream(event.streams[0]);
-      } else if (event.track) {
-        setScreenRemoteStream(new MediaStream([event.track]));
+      console.log('[ScreenShare] Remote track received:', event.track?.kind, event.track?.id, 'streams:', event.streams);
+      
+      if (event.track) {
+        event.track.enabled = true;
+      }
+
+      if (!screenRemoteStreamRef.current) {
+        screenRemoteStreamRef.current = new MediaStream();
+      }
+
+      if (event.track) {
+        const existing = screenRemoteStreamRef.current.getTracks().find(t => t.id === event.track.id);
+        if (!existing) {
+          screenRemoteStreamRef.current.addTrack(event.track);
+        }
+      }
+
+      const activeTracks = event.streams && event.streams[0]
+        ? event.streams[0].getTracks()
+        : screenRemoteStreamRef.current.getTracks();
+
+      // Dispatch fresh MediaStream reference with all tracks (video + audio)
+      setScreenRemoteStream(new MediaStream(activeTracks));
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('[ScreenShare] ICE Connection State:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed') {
+        console.warn('[ScreenShare] Connection failed, attempting ICE restart...');
+        try { pc.restartIce(); } catch (e) {}
       }
     };
 

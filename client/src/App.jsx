@@ -6,6 +6,7 @@ import { FriendsTab } from './components/FriendsTab';
 import { UserSwitcherModal } from './components/UserSwitcherModal';
 import { ProfileSettingsModal } from './components/ProfileSettingsModal';
 import { VoiceCallModal } from './components/VoiceCallModal';
+import { ScreenShareModal } from './components/ScreenShareModal';
 import { DualSimulator } from './components/DualSimulator';
 import {
   SplitSquareVertical,
@@ -180,6 +181,9 @@ const MainLayout = ({ onToggleSimulator }) => {
 
       {/* WebRTC Real-Time Voice Call Modal */}
       <VoiceCallModal />
+
+      {/* WebRTC Real-Time Screen Sharing Modal */}
+      <ScreenShareModal />
 
       {/* Real-time Toast Banner */}
       {statusNotification && (

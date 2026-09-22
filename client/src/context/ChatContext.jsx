@@ -37,6 +37,12 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [callDuration, setCallDuration] = useState('00:00');
 
+  // WebRTC Screen Sharing States
+  const [screenShareState, setScreenShareState] = useState('idle'); // 'idle' | 'sharing' | 'receiving'
+  const [activeScreenShare, setActiveScreenShare] = useState(null); // { shareId, peerId, peerName, peerAvatar, isSharing, hasAudio }
+  const [screenAudioVolume, setScreenAudioVolume] = useState(1.0);
+  const [isScreenAudioMuted, setIsScreenAudioMuted] = useState(false);
+
   const [statusFeed, setStatusFeed] = useState({ myStatuses: [], friendsStatuses: [] });
   const [chatWallpaper, setChatWallpaperState] = useState(() => {
     try {
@@ -66,7 +72,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   const typingTimeoutRef = useRef(null);
   const incomingTypingTimers = useRef({});
 
-  // WebRTC Refs
+  // WebRTC Voice Call Refs
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -76,6 +82,16 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   callStateRef.current = callState;
   const activeCallRef = useRef(activeCall);
   activeCallRef.current = activeCall;
+
+  // WebRTC Screen Share Refs
+  const screenStreamRef = useRef(null);
+  const screenPeerConnectionRef = useRef(null);
+  const remoteScreenVideoRef = useRef(null);
+  const localScreenVideoRef = useRef(null);
+  const screenShareStateRef = useRef('idle');
+  screenShareStateRef.current = screenShareState;
+  const activeScreenShareRef = useRef(activeScreenShare);
+  activeScreenShareRef.current = activeScreenShare;
 
   // Show quick toast notification
   const showToast = (message, type = 'info') => {
@@ -339,6 +355,197 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       remoteAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.65;
     }
   }, [isSpeakerOn]);
+
+  // ==========================================
+  // WebRTC Screen Sharing Methods
+  // ==========================================
+
+  const stopScreenShare = useCallback(() => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+    }
+    if (screenPeerConnectionRef.current) {
+      screenPeerConnectionRef.current.close();
+      screenPeerConnectionRef.current = null;
+    }
+    if (remoteScreenVideoRef.current) {
+      remoteScreenVideoRef.current.srcObject = null;
+    }
+    if (localScreenVideoRef.current) {
+      localScreenVideoRef.current.srcObject = null;
+    }
+
+    const currentShare = activeScreenShareRef.current;
+    if (currentShare && socketRef.current && currentUserRef.current) {
+      socketRef.current.emit('screenshare:stop', {
+        toUserId: currentShare.peerId,
+        fromUserId: currentUserRef.current.id
+      });
+    }
+
+    setScreenShareState('idle');
+    screenShareStateRef.current = 'idle';
+    setActiveScreenShare(null);
+    activeScreenShareRef.current = null;
+  }, []);
+
+  const createScreenPeerConnection = (targetPeerId, localStream = null) => {
+    if (screenPeerConnectionRef.current) {
+      screenPeerConnectionRef.current.close();
+      screenPeerConnectionRef.current = null;
+    }
+
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    screenPeerConnectionRef.current = pc;
+
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        pc.addTrack(track, localStream);
+      });
+    }
+
+    pc.ontrack = (event) => {
+      console.log('[ScreenShare] Remote stream received:', event.streams[0]);
+      if (remoteScreenVideoRef.current && event.streams && event.streams[0]) {
+        remoteScreenVideoRef.current.srcObject = event.streams[0];
+        remoteScreenVideoRef.current.muted = isScreenAudioMuted;
+        remoteScreenVideoRef.current.volume = screenAudioVolume;
+        const playPromise = remoteScreenVideoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => console.warn('[ScreenShare] Auto-play note:', err));
+        }
+      }
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socketRef.current && currentUserRef.current) {
+        const dest = targetPeerId || activeScreenShareRef.current?.peerId;
+        if (dest) {
+          socketRef.current.emit('screenshare:ice_candidate', {
+            toUserId: dest,
+            fromUserId: currentUserRef.current.id,
+            candidate: event.candidate
+          });
+        }
+      }
+    };
+
+    return pc;
+  };
+
+  const startScreenShare = async (friend = null) => {
+    const target = friend || activeFriendRef.current;
+    if (!currentUser || !target) {
+      showToast('Please open a chat to share screen', 'info');
+      return;
+    }
+    if (screenShareStateRef.current !== 'idle') {
+      showToast('Screen sharing is already active', 'info');
+      return;
+    }
+
+    try {
+      // Browser screen capture dialog (supports selecting Whole Screen, Application Window, or Browser Tab)
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: 'always', displaySurface: 'window' },
+        audio: true
+      });
+
+      // Capture microphone stream if available
+      let micStream = null;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (e) {
+        console.warn('Microphone capture note:', e);
+      }
+
+      const combinedStream = new MediaStream();
+      displayStream.getVideoTracks().forEach((t) => combinedStream.addTrack(t));
+
+      const hasDisplayAudio = displayStream.getAudioTracks().length > 0;
+      if (hasDisplayAudio && micStream && micStream.getAudioTracks().length > 0) {
+        try {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          const audioCtx = new AudioContextClass();
+          const dest = audioCtx.createMediaStreamDestination();
+          const displaySource = audioCtx.createMediaStreamSource(displayStream);
+          const micSource = audioCtx.createMediaStreamSource(micStream);
+          displaySource.connect(dest);
+          micSource.connect(dest);
+          dest.stream.getAudioTracks().forEach((t) => combinedStream.addTrack(t));
+        } catch (e) {
+          displayStream.getAudioTracks().forEach((t) => combinedStream.addTrack(t));
+        }
+      } else if (hasDisplayAudio) {
+        displayStream.getAudioTracks().forEach((t) => combinedStream.addTrack(t));
+      } else if (micStream && micStream.getAudioTracks().length > 0) {
+        micStream.getAudioTracks().forEach((t) => combinedStream.addTrack(t));
+      }
+
+      // Handle user ending screen share from browser floating banner
+      displayStream.getVideoTracks()[0].onended = () => {
+        stopScreenShare();
+      };
+
+      screenStreamRef.current = combinedStream;
+
+      if (localScreenVideoRef.current) {
+        localScreenVideoRef.current.srcObject = combinedStream;
+      }
+
+      const shareInfo = {
+        shareId: `share_${Date.now()}`,
+        peerId: target.id,
+        peerName: target.name,
+        peerAvatar: target.avatar,
+        isSharing: true,
+        hasAudio: hasDisplayAudio
+      };
+
+      setActiveScreenShare(shareInfo);
+      activeScreenShareRef.current = shareInfo;
+      setScreenShareState('sharing');
+      screenShareStateRef.current = 'sharing';
+
+      const pc = createScreenPeerConnection(target.id, combinedStream);
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
+      await pc.setLocalDescription(offer);
+
+      const socket = socketRef.current;
+      if (socket && socket.connected) {
+        socket.emit('screenshare:start', {
+          toUserId: target.id,
+          fromUserId: currentUser.id,
+          fromUserName: currentUser.name,
+          fromUserAvatar: currentUser.avatar,
+          offer,
+          hasAudio: hasDisplayAudio
+        });
+      }
+
+      showToast(`Sharing screen with ${target.name}${hasDisplayAudio ? ' (with audio)' : ''}`, 'success');
+    } catch (err) {
+      console.error('Screen sharing error:', err);
+      if (err.name !== 'NotAllowedError') {
+        showToast('Could not start screen sharing', 'error');
+      }
+      stopScreenShare();
+    }
+  };
+
+  const toggleScreenAudioMute = () => {
+    setIsScreenAudioMuted((prev) => {
+      const next = !prev;
+      if (remoteScreenVideoRef.current) {
+        remoteScreenVideoRef.current.muted = next;
+      }
+      return next;
+    });
+  };
 
   // Fetch status feed
   const refreshStatuses = useCallback(async (userId = null) => {
@@ -728,6 +935,76 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         console.error('[WebRTC] Error adding ICE candidate:', err);
       }
     });
+
+    // ==========================================
+    // WebRTC Screen Sharing Socket Handlers
+    // ==========================================
+
+    // 23. Screen Share Incoming (Receiver side)
+    socket.on('screenshare:incoming', async ({ fromUserId, fromUserName, fromUserAvatar, offer, hasAudio }) => {
+      console.log('[Socket] Incoming screen share from:', fromUserName, fromUserId);
+      const shareInfo = {
+        shareId: `share_${Date.now()}`,
+        peerId: fromUserId,
+        peerName: fromUserName || 'Friend',
+        peerAvatar: fromUserAvatar,
+        isSharing: false,
+        hasAudio: Boolean(hasAudio)
+      };
+
+      setActiveScreenShare(shareInfo);
+      activeScreenShareRef.current = shareInfo;
+      setScreenShareState('receiving');
+      screenShareStateRef.current = 'receiving';
+      soundEffects.playCallConnected();
+
+      try {
+        const pc = createScreenPeerConnection(fromUserId);
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        socket.emit('screenshare:answer', {
+          toUserId: fromUserId,
+          fromUserId: userId,
+          answer
+        });
+        showToast(`${fromUserName} started sharing screen${hasAudio ? ' (with audio)' : ''}`, 'info');
+      } catch (err) {
+        console.error('[ScreenShare] Error answering screen share:', err);
+        stopScreenShare();
+      }
+    });
+
+    // 24. Screen Share Answered (Presenter side)
+    socket.on('screenshare:answered', async ({ fromUserId, answer }) => {
+      console.log('[Socket] Screen share answered by:', fromUserId);
+      try {
+        if (screenPeerConnectionRef.current) {
+          await screenPeerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+      } catch (err) {
+        console.error('[ScreenShare] Error setting remote description answer:', err);
+      }
+    });
+
+    // 25. Screen Share ICE Candidate
+    socket.on('screenshare:ice_candidate', async ({ fromUserId, candidate }) => {
+      try {
+        if (screenPeerConnectionRef.current && candidate) {
+          await screenPeerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      } catch (err) {
+        console.error('[ScreenShare] ICE Candidate error:', err);
+      }
+    });
+
+    // 26. Screen Share Stopped
+    socket.on('screenshare:stopped', ({ fromUserId }) => {
+      console.log('[Socket] Screen share stopped by:', fromUserId);
+      stopScreenShare();
+      showToast('Screen sharing ended', 'info');
+    });
   };
 
   // Login or select user with optional localStorage persistence
@@ -735,6 +1012,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     if (!user) return;
     setLoading(true);
     cleanupCall();
+    stopScreenShare();
     setCurrentUser(user);
     currentUserRef.current = user;
     setActiveFriend(null);
@@ -1313,7 +1591,18 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         endVoiceCall,
         toggleMute,
         toggleSpeaker,
-        remoteAudioRef
+        remoteAudioRef,
+        // WebRTC Screen Sharing exports
+        screenShareState,
+        activeScreenShare,
+        startScreenShare,
+        stopScreenShare,
+        remoteScreenVideoRef,
+        localScreenVideoRef,
+        screenAudioVolume,
+        setScreenAudioVolume,
+        isScreenAudioMuted,
+        toggleScreenAudioMute
       }}
     >
       {children}

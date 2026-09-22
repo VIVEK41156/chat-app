@@ -5,6 +5,7 @@ import { ChatArea } from './ChatArea';
 import { FriendsTab } from './FriendsTab';
 import { UserSwitcherModal } from './UserSwitcherModal';
 import { VoiceCallModal } from './VoiceCallModal';
+import { ScreenShareModal } from './ScreenShareModal';
 import { Smartphone, SplitSquareVertical, CheckCircle2 } from 'lucide-react';
 
 const SingleChatInstance = ({ title, defaultUserId, onOpenModal }) => {
@@ -47,6 +48,9 @@ const SingleChatInstance = ({ title, defaultUserId, onOpenModal }) => {
 
       {/* WebRTC Real-Time Voice Call Modal */}
       <VoiceCallModal />
+
+      {/* WebRTC Real-Time Screen Share Modal */}
+      <ScreenShareModal />
 
       {/* Floating toast */}
       {statusNotification && (

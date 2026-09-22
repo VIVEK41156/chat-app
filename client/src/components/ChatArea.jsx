@@ -29,7 +29,9 @@ import {
   Pencil,
   Copy,
   Ban,
-  ChevronDown
+  ChevronDown,
+  MonitorUp,
+  Tv
 } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 
@@ -69,7 +71,8 @@ export const ChatArea = () => {
     showToast,
     setActiveFriend,
     chatWallpaper,
-    startVoiceCall
+    startVoiceCall,
+    startScreenShare
   } = useChat();
 
   const [inputText, setInputText] = useState('');
@@ -386,21 +389,34 @@ export const ChatArea = () => {
             <ArrowLeft size={20} />
           </button>
 
-          {/* Contact Avatar and Name / Status */}
+          {/* Contact Dual Circle Profiles and Name / Status */}
           <div
             onClick={() => setShowContactInfo(true)}
             className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 flex-1"
-            title="Click to view contact info"
+            title="Click to view contact info & connected profile"
           >
-            <div className="relative flex-shrink-0">
-              <img
-                src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
-                alt={activeFriend.name}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-[#00a884] transition"
-              />
-              {activeFriend.is_online ? (
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-[#25D366] rounded-full border-2 border-[#202c33]" />
-              ) : null}
+            {/* Connected Dual Circular Avatars */}
+            <div className="relative flex items-center -space-x-3 sm:-space-x-3.5 flex-shrink-0">
+              {/* Friend Circular Avatar */}
+              <div className="relative z-10">
+                <img
+                  src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
+                  alt={activeFriend.name}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-[#00a884] group-hover:ring-[#25D366] transition bg-[#111b21]"
+                />
+                {activeFriend.is_online ? (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-[#25D366] rounded-full border-2 border-[#202c33]" />
+                ) : null}
+              </div>
+
+              {/* Current User Circular Avatar Badge */}
+              <div className="relative z-20" title={`You (${currentUser?.name || 'You'})`}>
+                <img
+                  src={currentUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.username}`}
+                  alt={currentUser?.name || 'You'}
+                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover ring-2 ring-[#25D366] border-2 border-[#202c33] bg-[#111b21] shadow-md"
+                />
+              </div>
             </div>
 
             <div className="flex flex-col min-w-0 flex-1">
@@ -421,8 +437,18 @@ export const ChatArea = () => {
           </div>
         </div>
 
-        {/* Action Buttons: Phone Call, Video Call, Search, 3-dots Menu */}
+        {/* Action Buttons: Phone Call, Video Call, Screen Share, Search, 3-dots Menu */}
         <div className="flex items-center gap-0.5 sm:gap-1 text-[#aebac1] relative flex-shrink-0" ref={moreMenuRef}>
+          {/* Screen Share Button */}
+          <button
+            onClick={() => startScreenShare(activeFriend)}
+            className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] text-[#00a884] hover:text-[#25D366] transition flex items-center justify-center"
+            title="Share Screen & Video Audio (Select Window or Tab)"
+          >
+            <MonitorUp size={18} />
+          </button>
+
+          {/* Voice Call Button */}
           <button
             onClick={() => startVoiceCall(activeFriend)}
             className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] text-[#00a884] hover:text-[#25D366] transition"
@@ -430,13 +456,16 @@ export const ChatArea = () => {
           >
             <Phone size={18} />
           </button>
+
+          {/* Video Call Demo Button */}
           <button
-            onClick={() => showToast('Video calling demo feature', 'info')}
+            onClick={() => showToast('Video calling ready! Use Screen Share to share video and sound with your friend.', 'info')}
             className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition hidden xs:flex items-center justify-center"
             title="Start video call"
           >
             <Video size={18} />
           </button>
+
           <button
             onClick={() => showToast('Search within conversation', 'info')}
             className="p-1.5 sm:p-2 rounded-full hover:bg-[#374248] hover:text-[#e9edef] transition hidden sm:flex items-center justify-center"
@@ -458,7 +487,18 @@ export const ChatArea = () => {
 
           {/* WhatsApp-Style Three Dots Dropdown Menu */}
           {showMoreMenu && (
-            <div className="absolute top-11 sm:top-12 right-0 z-50 bg-[#202c33] border border-[#2a3942] rounded-xl shadow-2xl py-2 w-56 sm:w-60 animate-fade-in text-xs select-none">
+            <div className="absolute top-11 sm:top-12 right-0 z-50 bg-[#202c33] border border-[#2a3942] rounded-xl shadow-2xl py-2 w-60 sm:w-64 animate-fade-in text-xs select-none">
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false);
+                  startScreenShare(activeFriend);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#2a3942] text-[#00a884] font-semibold text-left transition"
+              >
+                <MonitorUp size={16} />
+                <span>Share Screen & Audio</span>
+              </button>
+
               <button
                 onClick={() => {
                   setShowMoreMenu(false);
@@ -466,7 +506,7 @@ export const ChatArea = () => {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#2a3942] text-[#e9edef] text-left transition"
               >
-                <User size={16} className="text-[#8696a0]" />
+                <User size={16} className="text-[#00a884]" />
                 <span>Contact info</span>
               </button>
 
@@ -576,14 +616,25 @@ export const ChatArea = () => {
           return (
             <div
               key={msg.id}
-              className={`flex ${isFromMe ? 'justify-end' : 'justify-start'} animate-fade-in group`}
+              className={`flex items-end gap-1.5 sm:gap-2 ${isFromMe ? 'justify-end' : 'justify-start'} animate-fade-in group`}
             >
+              {/* Friend Circular Profile Picture (Left of message) */}
+              {!isFromMe && (
+                <img
+                  src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
+                  alt={activeFriend.name}
+                  title={activeFriend.name}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-[#00a884]/40 flex-shrink-0 mb-0.5 shadow select-none cursor-pointer hover:ring-[#00a884] transition"
+                  onClick={() => setShowContactInfo(true)}
+                />
+              )}
+
               <div
                 onTouchStart={() => handleTouchStart(msg)}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onContextMenu={(e) => handleContextMenu(msg, e)}
-                className={`max-w-[85%] sm:max-w-[70%] md:max-w-[55%] rounded-lg shadow text-sm relative break-words overflow-hidden select-text transition-all ${
+                className={`max-w-[80%] sm:max-w-[70%] md:max-w-[55%] rounded-lg shadow text-sm relative break-words overflow-hidden select-text transition-all ${
                   isFromMe
                     ? isDeleted ? 'bg-[#005c4b]/40 text-[#8696a0] bubble-out rounded-tr-none' : 'bg-[#005c4b] text-[#e9edef] bubble-out rounded-tr-none'
                     : isDeleted ? 'bg-[#202c33]/40 text-[#8696a0] bubble-in rounded-tl-none' : 'bg-[#202c33] text-[#e9edef] bubble-in rounded-tl-none'
@@ -713,13 +764,28 @@ export const ChatArea = () => {
                   {isFromMe && !isDeleted && <MessageTicks status={msg.status} />}
                 </div>
               </div>
+
+              {/* Current User Circular Profile Picture (Right of message) */}
+              {isFromMe && (
+                <img
+                  src={currentUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.username}`}
+                  alt={currentUser?.name || 'You'}
+                  title={`${currentUser?.name || 'You'} (You)`}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-[#25D366]/40 flex-shrink-0 mb-0.5 shadow select-none"
+                />
+              )}
             </div>
           );
         })}
 
         {/* Dynamic Typing Indicator */}
         {isFriendTyping && (
-          <div className="flex justify-start animate-fade-in">
+          <div className="flex items-end gap-1.5 sm:gap-2 justify-start animate-fade-in">
+            <img
+              src={activeFriend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeFriend.username}`}
+              alt={activeFriend.name}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-[#25D366] flex-shrink-0 mb-0.5 shadow"
+            />
             <div className="bg-[#202c33] text-[#25D366] px-4 py-2.5 rounded-lg bubble-in rounded-tl-none flex items-center gap-2 shadow">
               <span className="text-xs font-medium">{activeFriend.name} is typing</span>
               <span className="flex gap-1">
@@ -774,6 +840,19 @@ export const ChatArea = () => {
               <Music size={18} />
             </div>
             <span>Audio Message</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setShowAttachMenu(false);
+              startScreenShare(activeFriend);
+            }}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#2a3942] transition text-[#00a884] text-xs font-semibold"
+          >
+            <div className="w-9 h-9 rounded-full bg-[#00a884] flex items-center justify-center text-white">
+              <MonitorUp size={18} />
+            </div>
+            <span>Share Screen & Sound</span>
           </button>
         </div>
       )}

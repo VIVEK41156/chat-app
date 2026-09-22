@@ -288,6 +288,59 @@ export const initSocket = (server) => {
       }
     });
 
+    // ==========================================
+    // Real-Time WebRTC Screen Share Signaling
+    // ==========================================
+
+    // 8. Screen Share Start Relay
+    socket.on('screenshare:start', (data) => {
+      const { toUserId, fromUserId, fromUserName, fromUserAvatar, offer, hasAudio } = data;
+      console.log(`[ScreenShare] Start from ${fromUserName} (${fromUserId}) to ${toUserId} (Audio: ${hasAudio})`);
+      if (toUserId) {
+        io.to(toUserId).emit('screenshare:incoming', {
+          fromUserId,
+          fromUserName,
+          fromUserAvatar,
+          offer,
+          hasAudio
+        });
+      }
+    });
+
+    // 9. Screen Share Answer Relay
+    socket.on('screenshare:answer', (data) => {
+      const { toUserId, fromUserId, answer } = data;
+      console.log(`[ScreenShare] Answer from ${fromUserId} to ${toUserId}`);
+      if (toUserId && answer) {
+        io.to(toUserId).emit('screenshare:answered', {
+          fromUserId,
+          answer
+        });
+      }
+    });
+
+    // 10. Screen Share ICE Candidate Relay
+    socket.on('screenshare:ice_candidate', (data) => {
+      const { toUserId, fromUserId, candidate } = data;
+      if (toUserId && candidate) {
+        io.to(toUserId).emit('screenshare:ice_candidate', {
+          fromUserId,
+          candidate
+        });
+      }
+    });
+
+    // 11. Screen Share Stop Relay
+    socket.on('screenshare:stop', (data) => {
+      const { toUserId, fromUserId } = data;
+      console.log(`[ScreenShare] Stop between ${fromUserId} and ${toUserId}`);
+      if (toUserId) {
+        io.to(toUserId).emit('screenshare:stopped', {
+          fromUserId
+        });
+      }
+    });
+
     // Disconnect handling
     socket.on('disconnect', async () => {
       console.log(`[Socket] Client disconnected: ${socket.id} (User: ${currentUserId || 'unknown'})`);

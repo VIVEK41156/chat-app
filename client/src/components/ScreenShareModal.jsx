@@ -1,0 +1,274 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useChat } from '../context/ChatContext';
+import {
+  MonitorUp,
+  MonitorOff,
+  Maximize2,
+  Minimize2,
+  Volume2,
+  VolumeX,
+  X,
+  Tv,
+  Music,
+  Radio,
+  ExternalLink,
+  Sparkles
+} from 'lucide-react';
+
+export const ScreenShareModal = () => {
+  const {
+    screenShareState,
+    activeScreenShare,
+    stopScreenShare,
+    remoteScreenVideoRef,
+    localScreenVideoRef,
+    screenAudioVolume,
+    setScreenAudioVolume,
+    isScreenAudioMuted,
+    toggleScreenAudioMute
+  } = useChat();
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const containerRef = useRef(null);
+
+  const isSharing = screenShareState === 'sharing';
+  const isReceiving = screenShareState === 'receiving';
+  const isActive = (isSharing || isReceiving) && activeScreenShare;
+
+  useEffect(() => {
+    if (remoteScreenVideoRef?.current) {
+      remoteScreenVideoRef.current.muted = isScreenAudioMuted;
+      remoteScreenVideoRef.current.volume = isScreenAudioMuted ? 0 : screenAudioVolume;
+    }
+  }, [screenAudioVolume, isScreenAudioMuted, remoteScreenVideoRef]);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const togglePiP = async () => {
+    const video = isSharing ? localScreenVideoRef.current : remoteScreenVideoRef.current;
+    if (!video) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (video.requestPictureInPicture) {
+        await video.requestPictureInPicture();
+      }
+    } catch (e) {
+      console.warn('PiP error:', e);
+    }
+  };
+
+  return (
+    <>
+      <video
+        ref={remoteScreenVideoRef}
+        autoPlay
+        playsInline
+        className="hidden"
+      />
+      <video
+        ref={localScreenVideoRef}
+        autoPlay
+        playsInline
+        muted
+        className="hidden"
+      />
+
+      {isActive && (
+        <div
+          ref={containerRef}
+          className={'fixed z-50 transition-all duration-300 select-none ' + (
+            isMinimized
+              ? 'bottom-4 right-4 w-80 sm:w-96 rounded-2xl shadow-2xl border border-[#00a884]/40 bg-[#111b21] overflow-hidden'
+              : isFullscreen
+              ? 'inset-0 w-screen h-screen bg-black flex flex-col justify-between'
+              : 'inset-0 flex items-center justify-center bg-black/90 backdrop-blur-md p-2 sm:p-6'
+          )}
+        >
+          <div
+            className={'relative flex flex-col bg-[#111b21] border border-[#2a3942] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden ' + (
+              isMinimized
+                ? 'w-full h-full'
+                : isFullscreen
+                ? 'w-full h-full rounded-none border-none'
+                : 'w-full max-w-5xl h-[85vh] max-h-[800px]'
+            )}
+          >
+            <div className="flex items-center justify-between px-4 py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center flex-shrink-0">
+                  <Tv size={18} />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-sm font-bold text-[#e9edef] truncate">
+                      {isSharing
+                        ? ('You are sharing your screen with ' + activeScreenShare.peerName)
+                        : (activeScreenShare.peerName + "'s Screen")}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] bg-[#00a884]/20 text-[#00a884] px-2 py-0.5 rounded-full font-semibold border border-[#00a884]/30">
+                      <Radio size={10} className="animate-pulse" /> LIVE
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-[#8696a0]">
+                    {activeScreenShare.hasAudio ? (
+                      <span className="flex items-center gap-1 text-[#25D366]">
+                        <Music size={12} /> System & Video Audio Active
+                      </span>
+                    ) : (
+                      <span>Real-time Screen Stream</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {!isSharing && (
+                  <div className="hidden xs:flex items-center gap-1.5 bg-[#111b21] px-2.5 py-1 rounded-full border border-[#2a3942]">
+                    <button
+                      onClick={toggleScreenAudioMute}
+                      className="text-[#8696a0] hover:text-[#00a884] transition"
+                      title={isScreenAudioMuted ? 'Unmute Video Audio' : 'Mute Video Audio'}
+                    >
+                      {isScreenAudioMuted || screenAudioVolume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={isScreenAudioMuted ? 0 : screenAudioVolume}
+                      onChange={(e) => {
+                        setScreenAudioVolume(parseFloat(e.target.value));
+                        if (isScreenAudioMuted) toggleScreenAudioMute();
+                      }}
+                      className="w-16 sm:w-20 accent-[#00a884] h-1 bg-[#2a3942] rounded-lg cursor-pointer"
+                      title={'Volume: ' + Math.round(screenAudioVolume * 100) + '%'}
+                    />
+                  </div>
+                )}
+
+                <button
+                  onClick={togglePiP}
+                  className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
+                  title="Picture in Picture"
+                >
+                  <ExternalLink size={16} />
+                </button>
+
+                <button
+                  onClick={() => setIsMinimized(!isMinimized)}
+                  className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
+                  title={isMinimized ? 'Expand Window' : 'Minimize Window'}
+                >
+                  <Minimize2 size={16} />
+                </button>
+
+                {!isMinimized && (
+                  <button
+                    onClick={toggleFullscreen}
+                    className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
+                    title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  >
+                    <Maximize2 size={16} />
+                  </button>
+                )}
+
+                <button
+                  onClick={stopScreenShare}
+                  className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition transform active:scale-95"
+                  title="Stop Sharing"
+                >
+                  <MonitorOff size={14} />
+                  <span className="hidden xs:inline">{isSharing ? 'Stop Sharing' : 'Leave'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+              {isSharing ? (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <video
+                    ref={(el) => {
+                      if (el && localScreenVideoRef.current && localScreenVideoRef.current.srcObject) {
+                        el.srcObject = localScreenVideoRef.current.srcObject;
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-xs text-white flex items-center gap-2 shadow">
+                    <span className="w-2 h-2 rounded-full bg-[#25D366] animate-ping" />
+                    <span>You are presenting your screen & video sound</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <video
+                    ref={(el) => {
+                      if (el && remoteScreenVideoRef.current && remoteScreenVideoRef.current.srcObject) {
+                        el.srcObject = remoteScreenVideoRef.current.srcObject;
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-contain"
+                  />
+                  
+                  {activeScreenShare.hasAudio && (
+                    <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-md border border-[#00a884]/30 px-3 py-1.5 rounded-xl text-xs text-[#00a884] flex items-center gap-2 shadow">
+                      <Music size={14} className="animate-bounce" />
+                      <span>Sound is playing through your speakers</span>
+                      <div className="flex items-center gap-0.5 h-3">
+                        <span className="w-0.5 bg-[#00a884] rounded-full animate-pulse h-2" />
+                        <span className="w-0.5 bg-[#25D366] rounded-full animate-pulse h-3" style={{ animationDelay: '0.15s' }} />
+                        <span className="w-0.5 bg-[#00a884] rounded-full animate-pulse h-2.5" style={{ animationDelay: '0.3s' }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {!isMinimized && isSharing && (
+              <div className="bg-[#182229] px-4 py-2 border-t border-[#2a3942]/60 flex items-center justify-between text-[11px] text-[#8696a0]">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-[#00a884]" />
+                  <span>
+                    When sharing YouTube or videos, selecting <strong>Chrome Tab</strong> or checking <strong>Share Audio</strong> transmits high quality sound.
+                  </span>
+                </div>
+                <button
+                  onClick={stopScreenShare}
+                  className="text-red-400 hover:underline font-semibold"
+                >
+                  End Session
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default ScreenShareModal;

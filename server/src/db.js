@@ -144,6 +144,9 @@ export const initDB = async () => {
     await dbRun(`ALTER TABLE users ADD COLUMN email TEXT`);
   } catch (e) {}
   try {
+    await dbRun(`ALTER TABLE users ADD COLUMN password TEXT`);
+  } catch (e) {}
+  try {
     await dbRun(`ALTER TABLE messages ADD COLUMN file_url TEXT`);
   } catch (e) {}
   try {
@@ -177,6 +180,66 @@ export const initDB = async () => {
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_otps_email ON email_otps(email, purpose, is_verified)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_statuses_user ON statuses(user_id, created_at)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_status_views_status ON status_views(status_id, viewer_id)`);
+
+  // Seed default demo users if users table is empty
+  const userCount = await dbGet('SELECT COUNT(*) as count FROM users');
+  if (!userCount || userCount.count === 0) {
+    console.log('[DB] Seeding default demo accounts for instant simulation & discovery...');
+    const now = new Date().toISOString();
+    const demoUsers = [
+      {
+        id: 'usr_alice_01',
+        username: 'alice',
+        name: 'Alice Johnson',
+        email: 'alice@whatsapp.demo',
+        password: 'password123',
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+        status_message: 'Hey there! I am using WhatsApp.'
+      },
+      {
+        id: 'usr_bob_02',
+        username: 'bob',
+        name: 'Bob Smith',
+        email: 'bob@whatsapp.demo',
+        password: 'password123',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+        status_message: 'Available for chats & voice calls 🎧'
+      },
+      {
+        id: 'usr_charlie_03',
+        username: 'charlie',
+        name: 'Charlie Brown',
+        email: 'charlie@whatsapp.demo',
+        password: 'password123',
+        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
+        status_message: 'Working on full-stack projects 🚀'
+      }
+    ];
+
+    for (const u of demoUsers) {
+      await dbRun(
+        `INSERT INTO users (id, username, name, email, password, avatar, status_message, is_online, last_seen, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        [u.id, u.username, u.name, u.email, u.password, u.avatar, u.status_message, now, now]
+      );
+    }
+
+    // Connect Alice and Bob as friends
+    const reqId = uuidv4();
+    await dbRun(
+      `INSERT INTO friend_requests (id, sender_id, receiver_id, status, disappearing_timer, created_at, updated_at)
+       VALUES (?, 'usr_alice_01', 'usr_bob_02', 'accepted', 0, ?, ?)`,
+      [reqId, now, now]
+    );
+
+    // Initial greeting message
+    const msgId = uuidv4();
+    await dbRun(
+      `INSERT INTO messages (id, sender_id, receiver_id, content, message_type, status, created_at, delivered_at, read_at)
+       VALUES (?, 'usr_bob_02', 'usr_alice_01', 'Hey Alice! Welcome to WhatsApp Real-Time Chat 💬', 'text', 'read', ?, ?, ?)`,
+      [msgId, now, now, now]
+    );
+  }
 
   // Database schema initialized
   console.log('[DB] Database schema initialized successfully.');

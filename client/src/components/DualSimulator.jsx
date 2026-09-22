@@ -33,7 +33,7 @@ const SingleChatInstance = ({ title, defaultUserId, onOpenModal }) => {
       {/* Main chat client body */}
       <div className="flex-1 flex overflow-hidden">
         <div className="w-[300px] sm:w-[320px] flex-shrink-0 flex flex-col h-full border-r border-[#222d34]">
-          <Sidebar onOpenUserModal={onOpenModal} isSplitView={true} />
+          <Sidebar onOpenAuthModal={onOpenModal} onOpenProfileModal={onOpenModal} isSplitView={true} />
         </div>
 
         <div className="flex-1 flex flex-col h-full overflow-hidden">

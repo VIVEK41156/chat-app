@@ -35,6 +35,16 @@ export const api = {
     return res.data;
   },
 
+  getMe: async (userId) => {
+    const res = await apiClient.get('/auth/me', { params: { userId } });
+    return res.data.user;
+  },
+
+  getAccounts: async () => {
+    const res = await apiClient.get('/auth/accounts');
+    return res.data.users;
+  },
+
   updateProfile: async (id, data) => {
     const res = await apiClient.put(`/auth/profile/${id}`, data);
     return res.data;

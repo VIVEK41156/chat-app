@@ -28,24 +28,14 @@ export const VoiceCallModal = () => {
     remoteAudioRef
   } = useChat();
 
-  if (callState === 'idle' || !activeCall) {
-    return (
-      <audio
-        ref={remoteAudioRef}
-        autoPlay
-        playsInline
-        className="hidden"
-      />
-    );
-  }
-
   const isIncoming = callState === 'incoming';
   const isOutgoing = callState === 'outgoing';
   const isConnected = callState === 'connected';
+  const isCallActive = callState !== 'idle' && activeCall;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in select-none">
-      {/* Hidden WebRTC Remote Audio Stream */}
+    <>
+      {/* Hidden WebRTC Remote Audio Stream - Permanently mounted so audio stream is never interrupted */}
       <audio
         ref={remoteAudioRef}
         autoPlay
@@ -53,10 +43,12 @@ export const VoiceCallModal = () => {
         className="hidden"
       />
 
-      <div className="relative w-full max-w-sm bg-[#111b21] border border-[#2a3942] rounded-3xl p-6 shadow-2xl flex flex-col items-center justify-between min-h-[480px] overflow-hidden">
-        {/* Ambient background glow */}
-        <div className="absolute -top-24 -left-24 w-60 h-60 bg-[#00a884]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-[#25D366]/15 rounded-full blur-3xl pointer-events-none" />
+      {isCallActive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in select-none">
+          <div className="relative w-full max-w-sm bg-[#111b21] border border-[#2a3942] rounded-3xl p-6 shadow-2xl flex flex-col items-center justify-between min-h-[480px] overflow-hidden">
+            {/* Ambient background glow */}
+            <div className="absolute -top-24 -left-24 w-60 h-60 bg-[#00a884]/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-[#25D366]/15 rounded-full blur-3xl pointer-events-none" />
 
         {/* Top Encrypted Call Notice */}
         <div className="flex items-center gap-1.5 text-[11px] text-[#00a884] bg-[#182229] border border-[#00a884]/30 px-3.5 py-1.5 rounded-full shadow z-10">
@@ -194,6 +186,8 @@ export const VoiceCallModal = () => {
         </div>
       </div>
     </div>
+  )}
+</>
   );
 };
 

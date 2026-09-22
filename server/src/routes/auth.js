@@ -144,30 +144,35 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// Register new user with verified Email & OTP
+// Register new user with verified Email, Password & OTP
 router.post('/register', async (req, res) => {
   try {
-    const { username, name, email, otp, avatar, status_message } = req.body;
+    const { username, name, email, password, otp, avatar, status_message } = req.body;
     if (!username || !name || !email) {
       return res.status(400).json({ error: 'Username, Name, and Email are required.' });
     }
 
-    const cleanUsername = username.trim().toLowerCase();
+    const cleanUsername = username.trim().toLowerCase().replace(/[^a-zA-Z0-9_]/g, '');
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password ? password.trim() : 'password123';
+
+    if (cleanUsername.length < 2) {
+      return res.status(400).json({ error: 'Username must be at least 2 characters long.' });
+    }
 
     // Check unique username
-    const existingUser = await dbGet('SELECT * FROM users WHERE username = ?', [cleanUsername]);
+    const existingUser = await dbGet('SELECT * FROM users WHERE LOWER(username) = ?', [cleanUsername]);
     if (existingUser) {
-      return res.status(409).json({ error: 'Username is already taken. Please choose another.' });
+      return res.status(409).json({ error: `Username @${cleanUsername} is already taken. Please choose another.` });
     }
 
     // Check unique email
-    const existingEmail = await dbGet('SELECT * FROM users WHERE email = ?', [cleanEmail]);
+    const existingEmail = await dbGet('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
     if (existingEmail) {
-      return res.status(409).json({ error: 'This email is already registered.' });
+      return res.status(409).json({ error: 'This email is already registered. Please log in instead.' });
     }
 
-    // Verify OTP was entered and validated
+    // Verify OTP was entered and validated (if provided)
     if (otp) {
       const validOtp = await dbGet(
         `SELECT * FROM email_otps 
@@ -181,32 +186,57 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    const id = `usr_${uuidv4().substring(0, 8)}`;
+    const id = `usr_${cleanUsername}_${uuidv4().substring(0, 6)}`;
     const now = new Date().toISOString();
     const defaultAvatar = avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanUsername}`;
     const statusMsg = status_message || 'Hey there! I am using WhatsApp.';
 
     await dbRun(
-      `INSERT INTO users (id, username, name, email, avatar, status_message, is_online, last_seen, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-      [id, cleanUsername, name.trim(), cleanEmail, defaultAvatar, statusMsg, now, now]
+      `INSERT INTO users (id, username, name, email, password, avatar, status_message, is_online, last_seen, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [id, cleanUsername, name.trim(), cleanEmail, cleanPassword, defaultAvatar, statusMsg, now, now]
     );
 
     const newUser = await dbGet('SELECT * FROM users WHERE id = ?', [id]);
-    return res.status(201).json({ message: 'User registered and email verified successfully!', user: newUser });
+    return res.status(201).json({ message: 'User registered and account created successfully!', user: newUser });
   } catch (err) {
     console.error('Register error:', err);
     return res.status(500).json({ error: 'Failed to register user.' });
   }
 });
 
-// Login via Email OTP, userId, or email
+// Login via Password, Email OTP, or userId
 router.post('/login', async (req, res) => {
   try {
-    const { email, otp, userId, username } = req.body;
+    const { identifier, username, email, password, otp, userId } = req.body;
     let user = null;
 
-    if (email && otp) {
+    // 1. Password-based Login (Username or Email + Password)
+    if ((identifier || username || (email && password)) && password !== undefined) {
+      const loginTarget = (identifier || username || email || '').trim().toLowerCase();
+      
+      user = await dbGet(
+        'SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?',
+        [loginTarget, loginTarget]
+      );
+
+      if (!user) {
+        return res.status(404).json({ error: 'No account found with this username or email. Please check credentials or register.' });
+      }
+
+      // Check password if set on account
+      if (user.password && user.password !== password.trim()) {
+        return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+      }
+
+      // If user had no password yet, set it now
+      if (!user.password && password.trim()) {
+        await dbRun('UPDATE users SET password = ? WHERE id = ?', [password.trim(), user.id]);
+        user.password = password.trim();
+      }
+    }
+    // 2. Email + OTP Login
+    else if (email && otp) {
       const cleanEmail = email.trim().toLowerCase();
       const cleanOtp = otp.toString().trim();
       const now = new Date().toISOString();
@@ -228,16 +258,20 @@ router.post('/login', async (req, res) => {
       if (!user) {
         return res.status(404).json({ error: 'No registered user found with this email. Please create an account.' });
       }
-    } else if (userId) {
+    }
+    // 3. User ID session resume
+    else if (userId) {
       user = await dbGet('SELECT * FROM users WHERE id = ?', [userId]);
-    } else if (email) {
+    }
+    // 4. Fallback email or username lookup
+    else if (email) {
       user = await dbGet('SELECT * FROM users WHERE LOWER(email) = ?', [email.trim().toLowerCase()]);
     } else if (username) {
       user = await dbGet('SELECT * FROM users WHERE LOWER(username) = ?', [username.trim().toLowerCase()]);
     }
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found. Please register first.' });
+      return res.status(404).json({ error: 'User not found. Please register or check your credentials.' });
     }
 
     return res.json({ message: 'Login successful', user });
@@ -247,11 +281,42 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Validate active user session / me
+router.get('/me', async (req, res) => {
+  try {
+    const userId = req.query.userId || req.headers['x-user-id'];
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const user = await dbGet('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!user) {
+      return res.status(404).json({ error: 'User session not found' });
+    }
+
+    return res.json({ user });
+  } catch (err) {
+    console.error('Validate session error:', err);
+    return res.status(500).json({ error: 'Failed to validate user session' });
+  }
+});
+
+// List all registered user accounts for quick switcher
+router.get('/accounts', async (req, res) => {
+  try {
+    const users = await dbAll('SELECT id, username, name, avatar, email, status_message, is_online, last_seen FROM users ORDER BY name ASC');
+    return res.json({ users });
+  } catch (err) {
+    console.error('Fetch accounts error:', err);
+    return res.status(500).json({ error: 'Failed to fetch accounts.' });
+  }
+});
+
 // Update Profile
 router.put('/profile/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, avatar, status_message, email } = req.body;
+    const { name, avatar, status_message, email, password } = req.body;
 
     const user = await dbGet('SELECT * FROM users WHERE id = ?', [id]);
     if (!user) {
@@ -262,10 +327,11 @@ router.put('/profile/:id', async (req, res) => {
     const updatedAvatar = avatar !== undefined ? avatar : user.avatar;
     const updatedStatus = status_message !== undefined ? status_message : user.status_message;
     const updatedEmail = email !== undefined ? email.trim().toLowerCase() : user.email;
+    const updatedPassword = password !== undefined ? password.trim() : user.password;
 
     await dbRun(
-      `UPDATE users SET name = ?, avatar = ?, status_message = ?, email = ? WHERE id = ?`,
-      [updatedName, updatedAvatar, updatedStatus, updatedEmail, id]
+      `UPDATE users SET name = ?, avatar = ?, status_message = ?, email = ?, password = ? WHERE id = ?`,
+      [updatedName, updatedAvatar, updatedStatus, updatedEmail, updatedPassword, id]
     );
 
     const updatedUser = await dbGet('SELECT * FROM users WHERE id = ?', [id]);

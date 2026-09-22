@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
 import { createSocketConnection } from '../services/socket';
+import { soundEffects } from '../services/soundEffects';
 import confetti from 'canvas-confetti';
 
 const ChatContext = createContext();
@@ -107,6 +108,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   };
 
   const cleanupCall = useCallback(() => {
+    soundEffects.stopAll();
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -147,9 +149,14 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       console.log('[WebRTC] Received remote audio stream track:', event.streams[0]);
       if (remoteAudioRef.current && event.streams && event.streams[0]) {
         remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.play().catch((err) => {
-          console.warn('[WebRTC] Audio auto-play note:', err);
-        });
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.65;
+        const playPromise = remoteAudioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn('[WebRTC] Audio auto-play note:', err);
+          });
+        }
       }
     };
 
@@ -203,6 +210,9 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       setCallState('outgoing');
       callStateRef.current = 'outgoing';
 
+      // Start audible outgoing dial tone
+      soundEffects.startOutgoingDialTone();
+
       const socket = socketRef.current;
       if (socket && socket.connected) {
         socket.emit('call:initiate', {
@@ -224,6 +234,9 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   const acceptVoiceCall = async () => {
     const currentCall = activeCallRef.current;
     if (!currentUser || !currentCall) return;
+
+    soundEffects.stopAll();
+    soundEffects.playCallConnected();
 
     try {
       let stream;
@@ -260,6 +273,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
 
   // Reject incoming call
   const rejectVoiceCall = () => {
+    soundEffects.stopAll();
+    soundEffects.playCallEnd();
     const currentCall = activeCallRef.current;
     const socket = socketRef.current;
     if (currentCall && socket && socket.connected && currentUser) {
@@ -274,6 +289,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
 
   // End active call
   const endVoiceCall = () => {
+    soundEffects.stopAll();
+    soundEffects.playCallEnd();
     const currentCall = activeCallRef.current;
     const socket = socketRef.current;
     if (currentCall && socket && socket.connected && currentUser) {
@@ -302,10 +319,26 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
   };
 
-  // Toggle Speaker Output
+  // Toggle Speaker Output Mode (Speakerphone vs Earpiece/Normal handset level)
   const toggleSpeaker = () => {
-    setIsSpeakerOn((prev) => !prev);
+    setIsSpeakerOn((prev) => {
+      const nextSpeaker = !prev;
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.volume = nextSpeaker ? 1.0 : 0.65;
+      }
+      showToast(nextSpeaker ? 'Speakerphone turned ON' : 'Earpiece / Normal mode ON', 'info');
+      return nextSpeaker;
+    });
   };
+
+  // Keep remote audio element volume and unmuted status synced with speaker mode
+  useEffect(() => {
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = false;
+      remoteAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.65;
+    }
+  }, [isSpeakerOn]);
 
   // Fetch status feed
   const refreshStatuses = useCallback(async (userId = null) => {
@@ -595,12 +628,18 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       activeCallRef.current = callInfo;
       setCallState('incoming');
       callStateRef.current = 'incoming';
+
+      // Play authentic incoming mobile ringtone
+      soundEffects.startIncomingRingtone();
     });
 
     // 17. Call Accepted by Receiver (Caller side)
     socket.on('call:accepted', async ({ receiverId, receiverName }) => {
       console.log('[Socket] Call accepted by:', receiverName || receiverId);
       if (callStateRef.current !== 'outgoing') return;
+
+      soundEffects.stopAll();
+      soundEffects.playCallConnected();
 
       setCallState('connected');
       callStateRef.current = 'connected';
@@ -629,6 +668,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     // 18. Call Rejected
     socket.on('call:rejected', ({ reason }) => {
       console.log('[Socket] Call rejected:', reason);
+      soundEffects.stopAll();
+      soundEffects.playCallEnd();
       showToast(reason || 'Call was declined', 'info');
       cleanupCall();
     });
@@ -636,6 +677,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     // 19. Call Ended by Remote Peer
     socket.on('call:ended', () => {
       console.log('[Socket] Remote peer ended call');
+      soundEffects.stopAll();
+      soundEffects.playCallEnd();
       showToast('Call ended by other user', 'info');
       cleanupCall();
     });
@@ -687,8 +730,9 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     });
   };
 
-  // Login or select user
-  const selectUser = async (user) => {
+  // Login or select user with optional localStorage persistence
+  const selectUser = async (user, remember = true) => {
+    if (!user) return;
     setLoading(true);
     cleanupCall();
     setCurrentUser(user);
@@ -697,6 +741,28 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     activeFriendRef.current = null;
     setMessages([]);
     setTypingMap({});
+
+    // Persist active user session to localStorage (unless in dual simulator with fixed initialUserId)
+    if (remember && !initialUserId) {
+      try {
+        localStorage.setItem('whatsapp_active_user_id', user.id);
+
+        // Update recent accounts list for quick switcher
+        const savedAccountsRaw = localStorage.getItem('whatsapp_saved_accounts');
+        const savedAccounts = savedAccountsRaw ? JSON.parse(savedAccountsRaw) : [];
+        const filtered = savedAccounts.filter((a) => a.id !== user.id);
+        filtered.unshift({
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          avatar: user.avatar,
+          email: user.email
+        });
+        localStorage.setItem('whatsapp_saved_accounts', JSON.stringify(filtered.slice(0, 10)));
+      } catch (e) {
+        console.error('Failed to persist session:', e);
+      }
+    }
 
     try {
       if (socketRef.current) {
@@ -715,26 +781,59 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
   };
 
-  // Initial boot
+  // Initial boot: checks saved active user session
   useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
       try {
-        const users = await api.getUsers();
-        setAllUsers(users || []);
+        // In Dual Simulator mode, use the explicit initialUserId
+        if (initialUserId) {
+          try {
+            const user = await api.getMe(initialUserId);
+            if (user && isMounted) {
+              await selectUser(user, false);
+              return;
+            }
+          } catch (e) {
+            console.warn('Initial user lookup fallback:', e);
+          }
+        }
 
-        if (users && users.length > 0) {
-          const target = initialUserId ? users.find((u) => u.id === initialUserId) || users[0] : users[0];
-          await selectUser(target);
+        // Standard Single Client: Check persisted session from localStorage
+        const savedUserId = localStorage.getItem('whatsapp_active_user_id');
+        if (savedUserId) {
+          try {
+            const user = await api.getMe(savedUserId);
+            if (user && isMounted) {
+              console.log('[Auth] Restored saved session for:', user.name, `@${user.username}`);
+              await selectUser(user, true);
+              return;
+            }
+          } catch (err) {
+            console.warn('[Auth] Saved user session invalid or expired:', err);
+            localStorage.removeItem('whatsapp_active_user_id');
+          }
+        }
+
+        // No saved user session -> set currentUser to null and let user log in / register
+        if (isMounted) {
+          setCurrentUser(null);
+          currentUserRef.current = null;
         }
       } catch (err) {
         console.error('Initialization error:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
+
     init();
 
     return () => {
+      isMounted = false;
       cleanupCall();
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -1020,10 +1119,25 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     try {
       const res = await api.register(formData);
       showToast('Account registered successfully!', 'success');
-      await selectUser(res.user);
+      await selectUser(res.user, true);
       return res.user;
     } catch (err) {
       showToast(err.response?.data?.error || 'Registration failed', 'error');
+      throw err;
+    }
+  };
+
+  // Log in with credentials (password or email OTP)
+  const loginUser = async (credentials) => {
+    try {
+      const res = await api.login(credentials);
+      if (res.user) {
+        await selectUser(res.user, true);
+        showToast(`Welcome back, ${res.user.name}!`, 'success');
+        return res.user;
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Login failed', 'error');
       throw err;
     }
   };
@@ -1176,6 +1290,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         cancelFriendRequest,
         removeFriend,
         registerUser,
+        loginUser,
         uploadCustomAvatar,
         updateProfile,
         logout,

@@ -168,11 +168,11 @@ export const VoiceCallModal = () => {
                 <span className="text-xs text-red-400 font-semibold">End Call</span>
               </button>
 
-              {/* Speaker Toggle */}
+              {/* Speaker / Earpiece Toggle */}
               <button
                 onClick={toggleSpeaker}
                 className="flex flex-col items-center gap-1.5 group"
-                title={isSpeakerOn ? 'Speaker On' : 'Speaker Off'}
+                title={isSpeakerOn ? 'Switch to Earpiece Handset' : 'Switch to Loudspeaker'}
               >
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition transform group-hover:scale-105 ${
                   isSpeakerOn ? 'bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/40' : 'bg-[#202c33] text-[#e9edef] hover:bg-[#2a3942]'

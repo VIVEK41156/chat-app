@@ -37,8 +37,8 @@ class SoundEffects {
         osc2.frequency.setValueAtTime(480, ctx.currentTime);
 
         gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime + 1.2);
+        gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.06, ctx.currentTime + 1.2);
         gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.3);
 
         osc1.connect(gain);
@@ -84,7 +84,7 @@ class SoundEffects {
           osc.frequency.setValueAtTime(freq, now + time);
 
           gain.gain.setValueAtTime(0, now + time);
-          gain.gain.linearRampToValueAtTime(0.22, now + time + 0.03);
+          gain.gain.linearRampToValueAtTime(0.12, now + time + 0.03);
           gain.gain.exponentialRampToValueAtTime(0.001, now + time + dur);
 
           osc.connect(gain);

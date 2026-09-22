@@ -34,7 +34,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   const [callState, setCallState] = useState('idle'); // 'idle' | 'outgoing' | 'incoming' | 'connected'
   const [activeCall, setActiveCall] = useState(null); // { callId, peerId, contactName, contactAvatar, isCaller }
   const [isMuted, setIsMuted] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false); // Default to Earpiece / Handset mode
   const [callDuration, setCallDuration] = useState('00:00');
 
   // WebRTC Screen Sharing States
@@ -137,12 +137,71 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       remoteAudioRef.current.srcObject = null;
     }
     stopCallTimer();
+    stopCallTimer();
     setCallState('idle');
     callStateRef.current = 'idle';
     setActiveCall(null);
     activeCallRef.current = null;
     setIsMuted(false);
+    setIsSpeakerOn(false);
+    applyAudioOutputRouting(false);
   }, []);
+
+  // Configure Audio Output Routing (Earpiece / Handset receiver vs Loudspeaker)
+  const applyAudioOutputRouting = async (speakerOn = false) => {
+    const audioEl = remoteAudioRef.current;
+    if (!audioEl) return;
+
+    try {
+      audioEl.muted = false;
+      // In earpiece mode, volume is ear-level gentle (0.35) so it doesn't blare externally
+      // In loudspeaker mode, volume is full power (1.0)
+      audioEl.volume = speakerOn ? 1.0 : 0.35;
+
+      if (typeof audioEl.setSinkId === 'function' && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioOutputs = devices.filter((d) => d.kind === 'audiooutput');
+
+        if (speakerOn) {
+          // Find external speakerphone
+          const speakerDevice = audioOutputs.find((d) =>
+            d.label.toLowerCase().includes('speaker') ||
+            d.label.toLowerCase().includes('loudspeaker') ||
+            d.label.toLowerCase().includes('external')
+          ) || audioOutputs.find((d) => d.deviceId === 'default') || audioOutputs[0];
+
+          if (speakerDevice && speakerDevice.deviceId) {
+            await audioEl.setSinkId(speakerDevice.deviceId);
+          } else {
+            await audioEl.setSinkId('');
+          }
+        } else {
+          // Find earpiece / receiver / handset / internal communications speaker
+          const earpieceDevice = audioOutputs.find((d) =>
+            d.label.toLowerCase().includes('earpiece') ||
+            d.label.toLowerCase().includes('receiver') ||
+            d.label.toLowerCase().includes('handset') ||
+            d.label.toLowerCase().includes('internal') ||
+            d.label.toLowerCase().includes('communication')
+          );
+
+          if (earpieceDevice && earpieceDevice.deviceId) {
+            await audioEl.setSinkId(earpieceDevice.deviceId);
+          } else {
+            try {
+              await audioEl.setSinkId('communications');
+            } catch (e) {
+              try {
+                await audioEl.setSinkId('');
+              } catch (err) {}
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[WebRTC] Audio sink routing notice:', err);
+    }
+  };
 
   const createPeerConnection = (targetPeerId) => {
     if (peerConnectionRef.current) {
@@ -165,8 +224,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       console.log('[WebRTC] Received remote audio stream track:', event.streams[0]);
       if (remoteAudioRef.current && event.streams && event.streams[0]) {
         remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.65;
+        applyAudioOutputRouting(isSpeakerOn);
         const playPromise = remoteAudioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {
@@ -204,7 +262,16 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     try {
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        // Strict VoIP Telephony constraints (echo cancellation, noise suppression, single-channel voice)
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1
+          },
+          video: false
+        });
       } catch (err) {
         console.error('Microphone access error:', err);
         showToast('Microphone access is required for voice calling', 'error');
@@ -212,6 +279,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       }
 
       localStreamRef.current = stream;
+      setIsSpeakerOn(false);
+      applyAudioOutputRouting(false);
 
       const callInfo = {
         callId: `call_${Date.now()}`,
@@ -257,7 +326,16 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     try {
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        // Strict VoIP Telephony constraints (echo cancellation, noise suppression, single-channel voice)
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1
+          },
+          video: false
+        });
       } catch (err) {
         console.error('Microphone access error:', err);
         showToast('Microphone access is required to accept the call', 'error');
@@ -266,6 +344,8 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       }
 
       localStreamRef.current = stream;
+      setIsSpeakerOn(false);
+      applyAudioOutputRouting(false);
       createPeerConnection(currentCall.peerId);
 
       setCallState('connected');
@@ -335,25 +415,17 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
   };
 
-  // Toggle Speaker Output Mode (Speakerphone vs Earpiece/Normal handset level)
-  const toggleSpeaker = () => {
-    setIsSpeakerOn((prev) => {
-      const nextSpeaker = !prev;
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.volume = nextSpeaker ? 1.0 : 0.65;
-      }
-      showToast(nextSpeaker ? 'Speakerphone turned ON' : 'Earpiece / Normal mode ON', 'info');
-      return nextSpeaker;
-    });
+  // Toggle Speaker Output Mode (Loudspeaker vs Earpiece handset receiver)
+  const toggleSpeaker = async () => {
+    const nextSpeaker = !isSpeakerOn;
+    setIsSpeakerOn(nextSpeaker);
+    await applyAudioOutputRouting(nextSpeaker);
+    showToast(nextSpeaker ? 'Loudspeaker ON' : 'Earpiece mode ON (Handset receiver)', 'info');
   };
 
-  // Keep remote audio element volume and unmuted status synced with speaker mode
+  // Keep remote audio element volume and device routing synced with speaker mode
   useEffect(() => {
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.muted = false;
-      remoteAudioRef.current.volume = isSpeakerOn ? 1.0 : 0.65;
-    }
+    applyAudioOutputRouting(isSpeakerOn);
   }, [isSpeakerOn]);
 
   // ==========================================

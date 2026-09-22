@@ -47,9 +47,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve frontend client build in production
-const clientDistDir = path.resolve(__dirname, '../../client/dist');
-if (fs.existsSync(clientDistDir)) {
+// Find and serve frontend client build in production
+const possibleDistDirs = [
+  path.resolve(__dirname, '../../client/dist'),
+  path.resolve(__dirname, '../public'),
+  path.resolve(__dirname, '../dist'),
+  path.resolve(process.cwd(), 'client/dist'),
+  path.resolve(process.cwd(), 'dist'),
+  path.resolve(process.cwd(), 'public')
+];
+
+const clientDistDir = possibleDistDirs.find((d) => fs.existsSync(d) && fs.existsSync(path.join(d, 'index.html')));
+
+if (clientDistDir) {
+  console.log(`[Static Frontend] Serving client build from: ${clientDistDir}`);
   app.use(express.static(clientDistDir, {
     maxAge: '1y',
     setHeaders: (res, filePath) => {
@@ -69,6 +80,24 @@ if (fs.existsSync(clientDistDir)) {
     }
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(clientDistDir, 'index.html'));
+  });
+} else {
+  console.warn('[Static Frontend] No client dist directory found in possible paths:', possibleDistDirs);
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>WhatsApp Web Loading...</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="background:#111b21;color:#e9edef;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;padding:20px;text-align:center;">
+          <h2 style="color:#00a884;">WhatsApp Real-Time Server Active</h2>
+          <p style="color:#8696a0;">Building and deploying frontend... Please refresh in a moment.</p>
+          <button onclick="window.location.reload()" style="background:#00a884;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;margin-top:15px;">Refresh</button>
+        </body>
+      </html>
+    `);
   });
 }
 

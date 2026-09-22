@@ -549,10 +549,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     return pc;
   };
 
-  const [currentFacingMode, setCurrentFacingMode] = useState('user');
-  const currentFacingModeRef = useRef('user');
-
-  const startScreenShare = async (friend = null, preferredMode = null) => {
+  const startScreenShare = async (friend = null) => {
     const target = friend || activeFriendRef.current;
     if (!currentUser || !target) {
       showToast('Please open a chat to share screen', 'info');
@@ -563,87 +560,46 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       return;
     }
 
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+      showToast('Screen sharing is not supported by this browser. Please use Chrome on Android or Desktop.', 'error');
+      return;
+    }
+
     const isMobileDevice = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
-    const hasGetDisplayMedia = typeof navigator !== 'undefined' && 
-                               Boolean(navigator?.mediaDevices?.getDisplayMedia);
 
     let displayStream = null;
-    let shareType = preferredMode === 'camera' ? 'camera' : 'screen';
 
     try {
-      if (preferredMode === 'camera') {
-        // Direct Camera Request
-        shareType = 'camera';
-        displayStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: currentFacingModeRef.current || 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: true
+      if (isMobileDevice) {
+        // Mobile Android screen share (prompts Android system screen cast / record)
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true
         });
-      } else if (hasGetDisplayMedia) {
-        // Device supports getDisplayMedia
-        try {
-          if (isMobileDevice) {
-            // Mobile Android Chrome only accepts simple video constraint
-            displayStream = await navigator.mediaDevices.getDisplayMedia({
-              video: true
-            });
-          } else {
-            // Desktop with sound capture
-            try {
-              displayStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { cursor: 'always' },
-                audio: true
-              });
-            } catch (audioErr) {
-              displayStream = await navigator.mediaDevices.getDisplayMedia({
-                video: true
-              });
-            }
-          }
-        } catch (displayErr) {
-          console.warn('getDisplayMedia attempt failed:', displayErr);
-          if (displayErr.name === 'NotAllowedError') {
-            // User cancelled permission or picker
-            return;
-          }
-          // On mobile, if screen capture fails or is blocked, gracefully fall back to live camera
-          if (isMobileDevice || !navigator.mediaDevices?.getDisplayMedia) {
-            showToast('Screen recording restricted on device. Switching to Live Camera Video...', 'info');
-            shareType = 'camera';
-            displayStream = await navigator.mediaDevices.getUserMedia({
-              video: {
-                facingMode: currentFacingModeRef.current || 'user'
-              },
-              audio: true
-            });
-          } else {
-            throw displayErr;
-          }
-        }
       } else {
-        // Mobile browser without getDisplayMedia API (e.g. iOS Safari / older mobile WebViews)
-        showToast('Mobile screen share not available in this browser. Starting Live Video Stream...', 'info');
-        shareType = 'camera';
-        displayStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: currentFacingModeRef.current || 'user'
-          },
-          audio: true
-        });
+        // Desktop screen share with sound
+        try {
+          displayStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: 'always'
+            },
+            audio: true
+          });
+        } catch (audioErr) {
+          displayStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true
+          });
+        }
       }
 
       if (!displayStream || displayStream.getVideoTracks().length === 0) {
-        showToast('No video or screen stream available', 'info');
+        showToast('No screen selected', 'info');
         return;
       }
 
       const videoTrack = displayStream.getVideoTracks()[0];
       const hasDisplayAudio = displayStream.getAudioTracks().length > 0;
 
-      // Handle user stopping screen share from browser floating banner
+      // Handle user stopping screen share from floating system banner
       videoTrack.onended = () => {
         stopScreenShare();
       };
@@ -657,8 +613,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         peerName: target.name,
         peerAvatar: target.avatar,
         isSharing: true,
-        hasAudio: hasDisplayAudio,
-        shareType // 'screen' | 'camera'
+        hasAudio: hasDisplayAudio
       };
 
       setActiveScreenShare(shareInfo);
@@ -681,21 +636,15 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           fromUserName: currentUser.name,
           fromUserAvatar: currentUser.avatar,
           offer,
-          hasAudio: hasDisplayAudio,
-          shareType
+          hasAudio: hasDisplayAudio
         });
       }
 
-      showToast(
-        shareType === 'camera'
-          ? `Sharing Live Video with ${target.name}`
-          : `Sharing screen with ${target.name}${hasDisplayAudio ? ' (with audio)' : ''}`,
-        'success'
-      );
+      showToast(`Sharing screen with ${target.name}${hasDisplayAudio ? ' (with audio)' : ''}`, 'success');
     } catch (err) {
       console.error('Screen sharing error:', err);
       if (err.name !== 'NotAllowedError') {
-        showToast('Could not start screen / video sharing: ' + (err.message || 'Permission denied'), 'error');
+        showToast('Could not start screen sharing: ' + (err.message || 'Permission denied'), 'error');
       }
       stopScreenShare();
     }

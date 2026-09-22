@@ -14,8 +14,7 @@ import {
   ExternalLink,
   Sparkles,
   Loader2,
-  Camera,
-  SwitchCamera
+  MessageSquare
 } from 'lucide-react';
 
 export const ScreenShareModal = () => {
@@ -28,9 +27,7 @@ export const ScreenShareModal = () => {
     screenAudioVolume,
     setScreenAudioVolume,
     isScreenAudioMuted,
-    toggleScreenAudioMute,
-    flipCamera,
-    currentFacingMode
+    toggleScreenAudioMute
   } = useChat();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -121,51 +118,125 @@ export const ScreenShareModal = () => {
 
   const currentStream = isSharing ? screenLocalStream : screenRemoteStream;
 
+  // FLOATING MINIMIZED POP-UP VIEW (Allows seamless chatting while watching/sharing screen)
+  if (isMinimized) {
+    return (
+      <div
+        ref={containerRef}
+        className="fixed z-50 bottom-20 right-3 sm:bottom-24 sm:right-6 w-56 sm:w-80 aspect-video rounded-2xl shadow-2xl border-2 border-[#00a884] bg-[#111b21] overflow-hidden flex flex-col animate-fade-in select-none group"
+      >
+        {/* Hidden Audio Receiver Element */}
+        <audio ref={audioRef} autoPlay playsInline className="hidden" />
+
+        {/* Mini Top Action Header */}
+        <div className="absolute top-0 inset-x-0 bg-black/80 backdrop-blur-sm px-2.5 py-1.5 flex items-center justify-between z-20 text-xs border-b border-white/10 opacity-90 group-hover:opacity-100 transition">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Radio size={12} className="text-[#00a884] animate-pulse flex-shrink-0" />
+            <span className="text-[11px] font-semibold text-[#e9edef] truncate max-w-[90px] sm:max-w-[150px]">
+              {isSharing ? 'My Screen' : `${activeScreenShare.peerName}'s Screen`}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {!isSharing && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleScreenAudioMute();
+                }}
+                className="p-1 rounded-md hover:bg-white/20 text-[#8696a0] hover:text-[#00a884] transition"
+                title={isScreenAudioMuted ? 'Unmute Audio' : 'Mute Audio'}
+              >
+                {isScreenAudioMuted || screenAudioVolume === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}
+              </button>
+            )}
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMinimized(false);
+              }}
+              className="p-1 rounded-md bg-[#00a884]/30 hover:bg-[#00a884]/60 text-[#00a884] hover:text-white transition"
+              title="Expand to Full View"
+            >
+              <Maximize2 size={13} />
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                stopScreenShare();
+              }}
+              className="p-1 rounded-md bg-red-600/70 hover:bg-red-600 text-white transition"
+              title="Stop Sharing"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+
+        {/* Video Canvas - Tapping expands to full view */}
+        <div
+          className="relative w-full h-full bg-black flex items-center justify-center cursor-pointer"
+          onClick={() => setIsMinimized(false)}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={true}
+            onLoadedMetadata={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
+            className="w-full h-full object-contain"
+          />
+
+          {/* Quick Click-to-Expand Hint Overlay */}
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1.5 pointer-events-none">
+            <Maximize2 size={14} />
+            <span>Tap to expand</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // FULL SCREEN / MODAL VIEW
   return (
     <div
       ref={containerRef}
-      className={'fixed z-50 transition-all duration-300 select-none ' + (
-        isMinimized
-          ? 'bottom-4 right-4 w-80 sm:w-96 rounded-2xl shadow-2xl border border-[#00a884]/40 bg-[#111b21] overflow-hidden'
-          : isFullscreen
-          ? 'inset-0 w-screen h-screen bg-black flex flex-col justify-between'
-          : 'inset-0 flex items-center justify-center bg-black/90 backdrop-blur-md p-2 sm:p-6'
-      )}
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 w-screen h-screen bg-black flex flex-col justify-between select-none'
+          : 'fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-2 sm:p-6 select-none'
+      }
     >
       <div
-        className={'relative flex flex-col bg-[#111b21] border border-[#2a3942] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden ' + (
-          isMinimized
-            ? 'w-full h-full'
-            : isFullscreen
-            ? 'w-full h-full rounded-none border-none'
-            : 'w-full max-w-5xl h-[85vh] max-h-[800px]'
-        )}
+        className={
+          isFullscreen
+            ? 'relative w-full h-full flex flex-col bg-[#111b21]'
+            : 'relative w-full max-w-5xl h-[85vh] max-h-[800px] flex flex-col bg-[#111b21] border border-[#2a3942] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden'
+        }
       >
         {/* Top Screen Share Header */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center flex-shrink-0">
-              {activeScreenShare.shareType === 'camera' ? <Camera size={18} /> : <Tv size={18} />}
+              <Tv size={18} />
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-xs sm:text-sm font-bold text-[#e9edef] truncate">
                   {isSharing
-                    ? (activeScreenShare.shareType === 'camera'
-                        ? `Sharing Live Video with ${activeScreenShare.peerName}`
-                        : `Sharing screen with ${activeScreenShare.peerName}`)
-                    : (activeScreenShare.shareType === 'camera'
-                        ? `${activeScreenShare.peerName}'s Live Video`
-                        : `${activeScreenShare.peerName}'s Screen`)}
+                    ? `Sharing screen with ${activeScreenShare.peerName}`
+                    : `${activeScreenShare.peerName}'s Screen`}
                 </span>
                 <span className="flex items-center gap-1 text-[10px] bg-[#00a884]/20 text-[#00a884] px-2 py-0.5 rounded-full font-semibold border border-[#00a884]/30 flex-shrink-0">
                   <Radio size={10} className="animate-pulse" /> LIVE
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[11px] text-[#8696a0]">
-                {activeScreenShare.shareType === 'camera' ? (
-                  <span className="text-[#00a884]">Real-time camera video stream</span>
-                ) : activeScreenShare.hasAudio ? (
+                {activeScreenShare.hasAudio ? (
                   <span className="flex items-center gap-1 text-[#25D366]">
                     <Music size={12} /> System & Video Audio Active
                   </span>
@@ -177,17 +248,15 @@ export const ScreenShareModal = () => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Flip Camera Button (Only for sharing user) */}
-            {isSharing && (
-              <button
-                onClick={flipCamera}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#111b21] hover:bg-[#2a3942] text-[#00a884] hover:text-[#25D366] border border-[#00a884]/40 text-xs font-semibold transition"
-                title="Switch between front and rear camera"
-              >
-                <SwitchCamera size={15} />
-                <span className="hidden xs:inline">Flip Cam</span>
-              </button>
-            )}
+            {/* Pop-up & Chat Mode Button */}
+            <button
+              onClick={() => setIsMinimized(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#00a884]/20 hover:bg-[#00a884]/30 text-[#00a884] hover:text-[#25D366] border border-[#00a884]/40 text-xs font-semibold transition active:scale-95"
+              title="Pop-up view: Continue chatting while viewing stream"
+            >
+              <MessageSquare size={15} />
+              <span>Chat / Pop-up</span>
+            </button>
 
             {!isSharing && (
               <div className="hidden xs:flex items-center gap-1.5 bg-[#111b21] px-2.5 py-1 rounded-full border border-[#2a3942]">
@@ -217,28 +286,18 @@ export const ScreenShareModal = () => {
             <button
               onClick={togglePiP}
               className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
-              title="Picture in Picture"
+              title="Browser Picture-in-Picture"
             >
               <ExternalLink size={16} />
             </button>
 
             <button
-              onClick={() => setIsMinimized(!isMinimized)}
+              onClick={toggleFullscreen}
               className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
-              title={isMinimized ? 'Expand Window' : 'Minimize Window'}
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
             >
-              <Minimize2 size={16} />
+              <Maximize2 size={16} />
             </button>
-
-            {!isMinimized && (
-              <button
-                onClick={toggleFullscreen}
-                className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-              >
-                <Maximize2 size={16} />
-              </button>
-            )}
 
             <button
               onClick={stopScreenShare}
@@ -292,11 +351,7 @@ export const ScreenShareModal = () => {
           {isSharing && (
             <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-xs text-white flex items-center gap-2 shadow z-10">
               <span className="w-2 h-2 rounded-full bg-[#25D366] animate-ping" />
-              <span>
-                {activeScreenShare.shareType === 'camera'
-                  ? `Live camera video active (${currentFacingMode === 'user' ? 'Front' : 'Rear'})`
-                  : 'You are presenting your screen & video sound'}
-              </span>
+              <span>You are sharing your screen</span>
             </div>
           )}
 
@@ -315,12 +370,12 @@ export const ScreenShareModal = () => {
         </div>
 
         {/* Bottom Helpful Tip Banner */}
-        {!isMinimized && isSharing && (
+        {isSharing && (
           <div className="bg-[#182229] px-4 py-2 border-t border-[#2a3942]/60 flex items-center justify-between text-[11px] text-[#8696a0]">
             <div className="flex items-center gap-1.5">
               <Sparkles size={13} className="text-[#00a884]" />
               <span>
-                When sharing YouTube or movies, selecting <strong>Chrome Tab</strong> or checking <strong>Share Audio</strong> transmits high quality sound.
+                Tip: Tap <strong>Chat / Pop-up</strong> to keep chatting with {activeScreenShare.peerName} while sharing!
               </span>
             </div>
             <button

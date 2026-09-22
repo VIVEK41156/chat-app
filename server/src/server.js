@@ -50,11 +50,24 @@ app.get('/api/health', (req, res) => {
 // Serve frontend client build in production
 const clientDistDir = path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(clientDistDir)) {
-  app.use(express.static(clientDistDir));
+  app.use(express.static(clientDistDir, {
+    maxAge: '1y',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
+
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
       return next();
     }
+    // If request was for a static asset (.js, .css, etc.) that does not exist, return 404 instead of index.html
+    if (/\.(js|css|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(req.path)) {
+      return res.status(404).send('Asset not found');
+    }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(clientDistDir, 'index.html'));
   });
 }

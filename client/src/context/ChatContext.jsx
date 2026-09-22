@@ -1080,9 +1080,21 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
 
         // Standard Single Client: Check persisted session from localStorage
         const savedUserId = localStorage.getItem('whatsapp_active_user_id');
-        if (savedUserId) {
+        let savedAccount = null;
+        try {
+          const rawAccounts = localStorage.getItem('whatsapp_saved_accounts');
+          if (rawAccounts) {
+            const parsed = JSON.parse(rawAccounts);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              savedAccount = (savedUserId ? parsed.find((a) => a.id === savedUserId) : null) || parsed[0];
+            }
+          }
+        } catch (e) {}
+
+        const targetId = savedUserId || savedAccount?.id;
+        if (targetId) {
           try {
-            const user = await api.getMe(savedUserId);
+            const user = await api.getMe(targetId, savedAccount);
             if (user && isMounted) {
               console.log('[Auth] Restored saved session for:', user.name, `@${user.username}`);
               await selectUser(user, true);
@@ -1090,7 +1102,6 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
             }
           } catch (err) {
             console.warn('[Auth] Saved user session invalid or expired:', err);
-            localStorage.removeItem('whatsapp_active_user_id');
           }
         }
 

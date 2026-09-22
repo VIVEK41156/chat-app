@@ -131,7 +131,8 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
   // -------------------------------------------------------------
   const handlePasswordLogin = async (e) => {
     e?.preventDefault();
-    if (!loginIdentifier.trim()) {
+    const rawTarget = loginIdentifier.trim();
+    if (!rawTarget) {
       setErrorMsg('Please enter your username or registered email.');
       return;
     }
@@ -139,10 +140,20 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
     setIsSubmitting(true);
     setErrorMsg('');
 
+    const cleanTarget = rawTarget.toLowerCase().replace(/^@/, '');
+    const matchingSaved = savedAccounts.find(
+      (a) =>
+        (a.username && a.username.toLowerCase().replace(/^@/, '') === cleanTarget) ||
+        (a.email && a.email.toLowerCase() === rawTarget.toLowerCase()) ||
+        (a.name && a.name.toLowerCase() === rawTarget.toLowerCase()) ||
+        (a.id && a.id === rawTarget)
+    );
+
     try {
       await loginUser({
-        identifier: loginIdentifier.trim(),
-        password: loginPassword
+        identifier: rawTarget,
+        password: loginPassword,
+        account: matchingSaved || null
       });
 
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
@@ -156,22 +167,25 @@ export const UserSwitcherModal = ({ isOpen, onClose }) => {
 
   // Quick 1-click login from saved accounts list
   const handleQuickAccountSelect = async (account) => {
-    setLoginIdentifier(account.username || account.email);
-    if (account.id.startsWith('usr_alice') || account.id.startsWith('usr_bob') || account.id.startsWith('usr_charlie')) {
-      try {
-        setIsSubmitting(true);
-        await selectUser(account, true);
-        showToast(`Logged in as ${account.name}!`, 'success');
-        onClose();
-      } catch (err) {
-        setErrorMsg('Failed to log in as selected account.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      setLoginIdentifier(account.username || account.email);
+    setLoginIdentifier(account.username || account.email || account.name);
+    setErrorMsg('');
+
+    try {
+      setIsSubmitting(true);
+      await loginUser({
+        identifier: account.username || account.email || account.name,
+        password: account.password || 'password123',
+        account: account
+      });
+      showToast(`Welcome back, ${account.name}!`, 'success');
+      confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
+      onClose();
+    } catch (err) {
+      setLoginIdentifier(account.username || account.email || account.name);
       setLoginPassword('');
-      showToast(`Selected ${account.name} (@${account.username}). Enter password to log in.`, 'info');
+      showToast(`Selected ${account.name} (@${account.username || ''}). Enter password to log in.`, 'info');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

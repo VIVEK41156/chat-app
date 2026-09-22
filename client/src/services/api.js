@@ -35,7 +35,11 @@ export const api = {
     return res.data;
   },
 
-  getMe: async (userId) => {
+  getMe: async (userId, account = null) => {
+    if (account) {
+      const res = await apiClient.post('/auth/me', { userId, account });
+      return res.data.user;
+    }
     const res = await apiClient.get('/auth/me', { params: { userId } });
     return res.data.user;
   },

@@ -370,7 +370,7 @@ export const ChatArea = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0b141a] relative">
+    <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-[#0b141a] relative w-full">
       {/* Hidden File Inputs */}
       <input
         type="file"
@@ -954,11 +954,11 @@ export const ChatArea = () => {
         </div>
       )}
 
-      {/* Message Input Footer - Fixed & Sticky */}
+      {/* Message Input Footer - Fixed & Visible on Mobile & Desktop */}
       {!pendingFile && (
         <form
           onSubmit={handleSend}
-          className="sticky bottom-0 z-20 flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-t border-[#222d34] select-none shadow-lg"
+          className="flex-shrink-0 w-full z-20 flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-[#202c33] border-t border-[#222d34] select-none shadow-lg pb-[max(0.5rem,env(safe-area-inset-bottom))]"
         >
           <button
             type="button"
@@ -966,12 +966,12 @@ export const ChatArea = () => {
               setShowEmojiPicker(!showEmojiPicker);
               setShowAttachMenu(false);
             }}
-            className={`p-2 rounded-full hover:bg-[#374248] transition ${
+            className={`p-1.5 sm:p-2 rounded-full hover:bg-[#374248] transition flex-shrink-0 ${
               showEmojiPicker ? 'text-[#00a884]' : 'text-[#8696a0] hover:text-[#e9edef]'
             }`}
             title="Emojis"
           >
-            <Smile size={22} />
+            <Smile size={21} />
           </button>
 
           <button
@@ -980,15 +980,15 @@ export const ChatArea = () => {
               setShowAttachMenu(!showAttachMenu);
               setShowEmojiPicker(false);
             }}
-            className={`p-2 rounded-full transition ${
+            className={`p-1.5 sm:p-2 rounded-full transition flex-shrink-0 ${
               showAttachMenu ? 'text-[#00a884] bg-[#2a3942]' : 'text-[#8696a0] hover:text-[#e9edef] hover:bg-[#374248]'
             }`}
             title="Attach Photos, Documents, Audio"
           >
-            <Paperclip size={20} />
+            <Paperclip size={19} />
           </button>
 
-          <div className="flex-1 bg-[#2a3942] rounded-lg px-3 py-2 flex items-center">
+          <div className="flex-1 min-w-0 bg-[#2a3942] rounded-xl px-3 py-1.5 sm:py-2 flex items-center">
             <input
               ref={inputRef}
               type="text"
@@ -996,14 +996,14 @@ export const ChatArea = () => {
               value={inputText}
               onChange={handleInputChange}
               onBlur={() => emitTyping(false)}
-              className="bg-transparent text-sm text-[#e9edef] placeholder-[#8696a0] focus:outline-none w-full select-text"
+              className="bg-transparent text-sm sm:text-base text-[#e9edef] placeholder-[#8696a0] focus:outline-none w-full select-text"
             />
           </div>
 
           <button
             type="submit"
             disabled={!inputText.trim()}
-            className={`p-2.5 rounded-full transition shadow flex items-center justify-center ${
+            className={`p-2 sm:p-2.5 rounded-full transition shadow flex-shrink-0 flex items-center justify-center active:scale-95 ${
               inputText.trim()
                 ? 'bg-[#00a884] text-white hover:bg-[#008f6f] cursor-pointer scale-105'
                 : 'bg-[#2a3942] text-[#8696a0] cursor-not-allowed opacity-60'

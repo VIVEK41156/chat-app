@@ -453,16 +453,12 @@ export const FriendsTab = () => {
                         </div>
                       ) : isPendingSent ? (
                         <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => respondFriendRequest(user.requestId, 'accept')}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold rounded-lg transition shadow"
-                            title="Accept & Connect"
-                          >
-                            <Check size={13} /> Accept & Connect
-                          </button>
+                          <span className="text-xs text-[#8696a0] bg-[#202c33] border border-[#2a3942] px-2.5 py-1 rounded-md font-medium flex items-center gap-1">
+                            <Clock size={12} className="text-[#00a884]" /> Request Sent
+                          </span>
                           <button
                             onClick={() => cancelFriendRequest(user.requestId)}
-                            className="p-1.5 text-[#8696a0] hover:text-red-400 hover:bg-red-500/10 rounded transition text-xs"
+                            className="p-1.5 text-[#8696a0] hover:text-red-400 hover:bg-red-500/10 rounded-md transition text-xs"
                             title="Cancel request"
                           >
                             <X size={14} />

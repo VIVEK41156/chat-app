@@ -67,11 +67,11 @@ const MainLayout = ({ onToggleSimulator }) => {
   }
 
   return (
-    <div className="flex h-screen h-[100dvh] w-screen bg-[#0c1317] overflow-hidden p-0 sm:p-3 md:p-4 items-center justify-center">
+    <div className="fixed inset-0 w-full h-full h-[100dvh] bg-[#0c1317] overflow-hidden p-0 sm:p-2 md:p-4 flex items-center justify-center">
       {/* WhatsApp Window Container */}
-      <div className="flex flex-col h-full w-full max-w-[1700px] bg-[#111b21] shadow-2xl rounded-none sm:rounded-xl overflow-hidden border border-[#222d34]">
+      <div className="flex flex-col h-full w-full max-w-[1700px] bg-[#111b21] shadow-2xl rounded-none sm:rounded-xl overflow-hidden border-0 sm:border border-[#222d34] min-h-0">
         {/* Top Control Bar (Hidden on Mobile if inside active chat) */}
-        <div className={`bg-[#202c33] px-3.5 py-2 border-b border-[#222d34] items-center justify-between text-xs text-[#8696a0] ${
+        <div className={`bg-[#202c33] px-3.5 py-2 border-b border-[#222d34] items-center justify-between text-xs text-[#8696a0] flex-shrink-0 ${
           activeFriend ? 'hidden sm:flex' : 'flex'
         }`}>
           <div className="flex items-center gap-2">
@@ -85,7 +85,7 @@ const MainLayout = ({ onToggleSimulator }) => {
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={onToggleSimulator}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold rounded-md transition shadow"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold rounded-md transition shadow active:scale-95"
               title="Open dual screen to test 2 users chatting in real-time"
             >
               <SplitSquareVertical size={14} />
@@ -96,10 +96,10 @@ const MainLayout = ({ onToggleSimulator }) => {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 min-h-0 flex overflow-hidden relative w-full h-full">
           {/* Desktop Left Sidebar OR Mobile Chat List / Status */}
           <div
-            className={`w-full sm:w-[380px] md:w-[420px] flex-shrink-0 flex flex-col h-full border-r border-[#222d34] ${
+            className={`w-full sm:w-[380px] md:w-[420px] flex-shrink-0 flex flex-col h-full min-h-0 border-r border-[#222d34] ${
               activeFriend ? 'hidden sm:flex' : (activeTab === 'friends' || activeTab === 'requests') ? 'hidden sm:flex' : 'flex'
             }`}
           >
@@ -111,7 +111,7 @@ const MainLayout = ({ onToggleSimulator }) => {
 
           {/* Right Main Area on Desktop OR Mobile Active View */}
           <div
-            className={`flex-1 flex-col h-full overflow-hidden ${
+            className={`flex-1 min-h-0 flex flex-col h-full overflow-hidden ${
               activeFriend
                 ? 'flex'
                 : (activeTab === 'friends' || activeTab === 'requests')
@@ -129,7 +129,7 @@ const MainLayout = ({ onToggleSimulator }) => {
 
         {/* WhatsApp Mobile Bottom Navigation Bar (Visible only on mobile screens when not in active chat) */}
         {!activeFriend && (
-          <div className="sm:hidden flex items-center justify-around bg-[#202c33] border-t border-[#222d34] py-2 px-1 z-30 select-none">
+          <div className="sm:hidden flex-shrink-0 flex items-center justify-around bg-[#202c33] border-t border-[#222d34] py-1.5 px-1 z-30 select-none pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             <button
               onClick={() => setActiveTab('chats')}
               className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition relative ${

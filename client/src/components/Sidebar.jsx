@@ -264,12 +264,20 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
         {activeTab === 'chats' && (
           <div>
             {filteredFriends.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-8 text-center text-[#8696a0]">
-                <MessageSquare size={44} className="opacity-30 mb-3" />
-                <p className="text-sm font-medium text-[#e9edef]">No chats yet</p>
-                <p className="text-xs mt-1 max-w-[220px]">
-                  Go to the <span className="text-[#00a884] cursor-pointer font-medium" onClick={() => setActiveTab('friends')}>Friends Tab</span> to add persons and start chatting once they accept!
+              <div className="flex flex-col items-center justify-center p-6 text-center text-[#8696a0]">
+                <div className="w-14 h-14 rounded-full bg-[#202c33] flex items-center justify-center mb-3 text-[#00a884]">
+                  <MessageSquare size={28} />
+                </div>
+                <p className="text-sm font-semibold text-[#e9edef]">No conversations yet</p>
+                <p className="text-xs mt-1 max-w-[240px] text-[#8696a0]">
+                  Connect with friends on WhatsApp Web to start exchanging instant real-time messages and media.
                 </p>
+                <button
+                  onClick={() => setActiveTab('friends')}
+                  className="mt-4 px-4 py-2 bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5 active:scale-95"
+                >
+                  <Users size={14} /> Find Friends & Connect
+                </button>
               </div>
             ) : (
               <div className="divide-y divide-[#202c33]/50">

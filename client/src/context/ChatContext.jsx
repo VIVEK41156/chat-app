@@ -15,20 +15,23 @@ const ICE_SERVERS = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:stun.services.mozilla.com' },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.services.mozilla.com' },
     { urls: 'stun:stun.relay.metered.ca:80' },
     {
       urls: [
         'turn:openrelay.metered.ca:80',
         'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turn:openrelay.metered.ca:443?transport=udp',
+        'turns:openrelay.metered.ca:443?transport=tcp'
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
   ],
-  iceCandidatePoolSize: 10
+  iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all'
 };
 
 export const ChatProvider = ({ children, initialUserId = null }) => {
@@ -518,11 +521,16 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           screenRemoteStreamRef.current.addTrack(event.track);
         }
 
+        const updateRemoteStream = () => {
+          if (screenRemoteStreamRef.current) {
+            const fresh = new MediaStream(screenRemoteStreamRef.current.getTracks());
+            setScreenRemoteStream(fresh);
+          }
+        };
+
         event.track.onunmute = () => {
           console.log('[ScreenShare] Remote track unmuted:', event.track.kind);
-          if (screenRemoteStreamRef.current) {
-            setScreenRemoteStream(new MediaStream(screenRemoteStreamRef.current.getTracks()));
-          }
+          updateRemoteStream();
         };
 
         event.track.onended = () => {
@@ -1141,10 +1149,13 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         // Flush queued ICE candidates
         if (screenIceQueueRef.current.length > 0) {
           for (const cand of screenIceQueueRef.current) {
+            if (!cand) continue;
             try {
               await pc.addIceCandidate(new RTCIceCandidate(cand));
-            } catch (e) {
-              console.warn('[ScreenShare] Queued candidate error:', e);
+            } catch (e1) {
+              try {
+                await pc.addIceCandidate(cand);
+              } catch (e2) {}
             }
           }
           screenIceQueueRef.current = [];
@@ -1176,10 +1187,13 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           // Flush queued ICE candidates
           if (screenIceQueueRef.current.length > 0) {
             for (const cand of screenIceQueueRef.current) {
+              if (!cand) continue;
               try {
                 await pc.addIceCandidate(new RTCIceCandidate(cand));
-              } catch (e) {
-                console.warn('[ScreenShare] Queued candidate error:', e);
+              } catch (e1) {
+                try {
+                  await pc.addIceCandidate(cand);
+                } catch (e2) {}
               }
             }
             screenIceQueueRef.current = [];
@@ -1192,15 +1206,22 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
 
     // 25. Screen Share ICE Candidate
     socket.on('screenshare:ice_candidate', async ({ fromUserId, candidate }) => {
+      if (!candidate) return;
       try {
         const pc = screenPeerConnectionRef.current;
         if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e1) {
+            try {
+              await pc.addIceCandidate(candidate);
+            } catch (e2) {}
+          }
         } else {
           screenIceQueueRef.current.push(candidate);
         }
       } catch (err) {
-        console.error('[ScreenShare] ICE Candidate error:', err);
+        console.warn('[ScreenShare] ICE Candidate error:', err);
       }
     });
 

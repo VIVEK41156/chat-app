@@ -55,13 +55,27 @@ export const ScreenShareModal = () => {
         videoEl.srcObject = currentStream;
       }
       videoEl.muted = true; // Video element is always muted so mobile autoplay policies never block video frames
+      videoEl.setAttribute('playsinline', 'true');
+      videoEl.setAttribute('webkit-playsinline', 'true');
       
       const playVideo = () => {
-        videoEl.play().catch((err) => {
-          console.warn('[ScreenShareModal] Video play catch:', err);
-        });
+        const promise = videoEl.play();
+        if (promise !== undefined) {
+          promise.catch((err) => {
+            console.warn('[ScreenShareModal] Video play catch:', err);
+          });
+        }
       };
       playVideo();
+
+      // Listen for unmuting on all video tracks to immediately play
+      currentStream.getVideoTracks().forEach((vt) => {
+        vt.enabled = true;
+        vt.onunmute = () => {
+          console.log('[ScreenShareModal] Remote video track unmuted, calling play()');
+          playVideo();
+        };
+      });
 
       // For receiver: attach audio to dedicated audio element
       if (audioEl && !isSharing) {

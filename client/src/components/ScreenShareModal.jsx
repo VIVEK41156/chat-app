@@ -42,6 +42,13 @@ export const ScreenShareModal = () => {
 
   const currentStream = isSharing ? screenLocalStream : screenRemoteStream;
 
+  // Reset to full view whenever a screen share starts
+  useEffect(() => {
+    if (isActive) {
+      setIsMinimized(false);
+    }
+  }, [isActive, activeScreenShare?.shareId]);
+
   // Reactively attach the active MediaStream to the video and audio elements
   useEffect(() => {
     const videoEl = videoRef.current;
@@ -55,8 +62,10 @@ export const ScreenShareModal = () => {
         videoEl.srcObject = currentStream;
       }
       videoEl.muted = true; // Video element is always muted so mobile autoplay policies never block video frames
-      videoEl.setAttribute('playsinline', 'true');
-      videoEl.setAttribute('webkit-playsinline', 'true');
+      videoEl.defaultMuted = true;
+      videoEl.playsInline = true;
+      videoEl.setAttribute('playsinline', '');
+      videoEl.setAttribute('webkit-playsinline', '');
       
       const playVideo = () => {
         const promise = videoEl.play();

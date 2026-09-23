@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "WhatsApp Real-Time Chat Engine with Friend Request verification, SQLite storage, Presence, Ticks, and Dual Simulator",
   "scripts": {
-    "build": "npm --prefix client install && npm --prefix client run build && npm --prefix server install && node -e \"const fs=require('fs');const src='client/dist';const dst='server/public';if(fs.existsSync(src)){fs.cpSync(src,dst,{recursive:true});console.log('Synced client/dist to server/public');}\"",
+    "build": "npm --prefix client install && npm --prefix client run build && npm --prefix server install",
     "start": "node server/src/server.js",
     "server": "npm run start --prefix server",
     "client": "npm run dev --prefix client"

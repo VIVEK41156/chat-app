@@ -70,6 +70,8 @@ if (clientDistDir) {
         res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
       } else if (filePath.endsWith('.css')) {
         res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+      } else if (filePath.endsWith('.mp4')) {
+        res.setHeader('Content-Type', 'video/mp4');
       }
     }
   }));
@@ -78,8 +80,8 @@ if (clientDistDir) {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
       return next();
     }
-    // If request was for a static asset (.js, .css, etc.) that does not exist, return 404 instead of index.html
-    if (/\.(js|css|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(req.path)) {
+    // If request was for a static asset (.js, .css, .mp4, etc.) that does not exist, return 404 instead of index.html
+    if (/\.(js|css|map|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|mp4|webm|ogg|wav|mp3|m4v)$/i.test(req.path)) {
       return res.status(404).send('Asset not found');
     }
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

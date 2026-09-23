@@ -8,6 +8,7 @@ import { ProfileSettingsModal } from './components/ProfileSettingsModal';
 import { VoiceCallModal } from './components/VoiceCallModal';
 import { ScreenShareModal } from './components/ScreenShareModal';
 import { DualSimulator } from './components/DualSimulator';
+import { VideoPreloader } from './components/VideoPreloader';
 import {
   SplitSquareVertical,
   CheckCircle2,
@@ -220,15 +221,21 @@ const MainLayout = ({ onToggleSimulator }) => {
 
 export default function App() {
   const [simulatorMode, setSimulatorMode] = useState(false);
-
-  if (simulatorMode) {
-    return <DualSimulator onCloseSimulator={() => setSimulatorMode(false)} />;
-  }
+  const [preloaderDone, setPreloaderDone] = useState(false);
 
   return (
-    <ChatProvider>
-      <MainLayout onToggleSimulator={() => setSimulatorMode(true)} />
-    </ChatProvider>
+    <>
+      {!preloaderDone && (
+        <VideoPreloader onFinished={() => setPreloaderDone(true)} />
+      )}
+      {simulatorMode ? (
+        <DualSimulator onCloseSimulator={() => setSimulatorMode(false)} />
+      ) : (
+        <ChatProvider>
+          <MainLayout onToggleSimulator={() => setSimulatorMode(true)} />
+        </ChatProvider>
+      )}
+    </>
   );
 }
 

@@ -43,6 +43,28 @@ const MainLayout = ({ onToggleSimulator }) => {
   const friendsStatuses = statusFeed?.friendsStatuses || [];
   const unseenStatusCount = friendsStatuses.filter((g) => g.hasUnseen).length;
 
+  if (loading && !currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#111b21] text-[#e9edef] p-4 text-center select-none">
+        <div className="w-16 h-16 rounded-full bg-[#202c33] flex items-center justify-center mb-5 text-[#00a884] shadow-2xl border border-[#2a3942]">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="#00a884">
+            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.05 20.16C10.59 20.16 9.16 19.77 7.91 19.03L7.61 18.85L4.5 19.67L5.33 16.63L5.13 16.31C4.32 15.02 3.88 13.5 3.88 11.91C3.88 7.42 7.54 3.75 12.05 3.75C14.23 3.75 16.28 4.6 17.82 6.14C19.36 7.68 20.21 9.73 20.21 11.91C20.21 16.42 16.55 20.16 12.05 20.16Z"/>
+          </svg>
+        </div>
+        <div className="whatsapp-spin mb-4"></div>
+        <h2 className="text-base font-semibold text-[#e9edef] tracking-wide">WhatsApp Web</h2>
+        <p className="text-xs text-[#8696a0] mt-1">Connecting to real-time chat service...</p>
+        <button
+          onClick={() => setAuthModalOpen(true)}
+          className="mt-5 px-4 py-2 bg-[#202c33] hover:bg-[#2a3942] text-[#00a884] border border-[#2a3942] rounded-xl text-xs font-semibold transition shadow"
+        >
+          Open Account Login / Switcher
+        </button>
+        <UserSwitcherModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen h-[100dvh] w-screen bg-[#0c1317] overflow-hidden p-0 sm:p-3 md:p-4 items-center justify-center">
       {/* WhatsApp Window Container */}

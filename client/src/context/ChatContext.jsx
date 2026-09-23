@@ -15,6 +15,8 @@ const ICE_SERVERS = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.services.mozilla.com' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.relay.metered.ca:80' },
     {
       urls: [
@@ -497,13 +499,6 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       localStream.getTracks().forEach((track) => {
         pc.addTrack(track, localStream);
       });
-    } else {
-      try {
-        pc.addTransceiver('video', { direction: 'recvonly' });
-        pc.addTransceiver('audio', { direction: 'recvonly' });
-      } catch (e) {
-        console.warn('[ScreenShare] Transceiver add warning:', e);
-      }
     }
 
     pc.ontrack = (event) => {
@@ -518,24 +513,34 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       }
 
       if (event.track) {
-        const existing = screenRemoteStreamRef.current.getTracks().find(t => t.id === event.track.id);
+        const existing = screenRemoteStreamRef.current.getTracks().find((t) => t.id === event.track.id);
         if (!existing) {
           screenRemoteStreamRef.current.addTrack(event.track);
         }
+
+        event.track.onunmute = () => {
+          console.log('[ScreenShare] Remote track unmuted:', event.track.kind);
+          if (screenRemoteStreamRef.current) {
+            setScreenRemoteStream(new MediaStream(screenRemoteStreamRef.current.getTracks()));
+          }
+        };
+
+        event.track.onended = () => {
+          console.log('[ScreenShare] Remote track ended:', event.track.kind);
+        };
       }
 
-      const activeTracks = event.streams && event.streams[0]
-        ? event.streams[0].getTracks()
-        : screenRemoteStreamRef.current.getTracks();
+      const activeStream = (event.streams && event.streams[0])
+        ? event.streams[0]
+        : screenRemoteStreamRef.current;
 
-      // Dispatch fresh MediaStream reference with all tracks (video + audio)
-      setScreenRemoteStream(new MediaStream(activeTracks));
+      setScreenRemoteStream(new MediaStream(activeStream.getTracks()));
     };
 
     pc.oniceconnectionstatechange = () => {
       console.log('[ScreenShare] ICE Connection State:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
-        console.warn('[ScreenShare] Connection failed, attempting ICE restart...');
+        console.warn('[ScreenShare] ICE failed, attempting restart...');
         try { pc.restartIce(); } catch (e) {}
       }
     };
@@ -568,7 +573,12 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
     }
 
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
-      showToast('Screen sharing is not supported by this browser. Please use Chrome on Android or Desktop.', 'error');
+      const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+      if (isIOS) {
+        showToast('Screen broadcasting is restricted by Apple iOS Safari. You can view screens shared by Android & Desktop!', 'error');
+      } else {
+        showToast('Screen sharing is not supported by this browser. Please use Chrome on Android or Desktop.', 'error');
+      }
       return;
     }
 
@@ -578,12 +588,12 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
 
     try {
       if (isMobileDevice) {
-        // Mobile Android screen share (prompts Android system screen cast / record)
+        // Mobile Android screen share (prompts system screen cast)
         displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: true
         });
       } else {
-        // Desktop screen share with sound
+        // Desktop screen share with sound support
         try {
           displayStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
@@ -606,7 +616,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       const videoTrack = displayStream.getVideoTracks()[0];
       const hasDisplayAudio = displayStream.getAudioTracks().length > 0;
 
-      // Handle user stopping screen share from floating system banner
+      // Handle user stopping screen share from floating browser banner
       videoTrack.onended = () => {
         stopScreenShare();
       };
@@ -629,10 +639,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
       screenShareStateRef.current = 'sharing';
 
       const pc = createScreenPeerConnection(target.id, displayStream);
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true
-      });
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       const socket = socketRef.current;
@@ -654,51 +661,6 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         showToast('Could not start screen sharing: ' + (err.message || 'Permission denied'), 'error');
       }
       stopScreenShare();
-    }
-  };
-
-  const flipCamera = async () => {
-    if (screenShareStateRef.current !== 'sharing' || !screenStreamRef.current) return;
-    const newFacing = currentFacingMode === 'user' ? 'environment' : 'user';
-    try {
-      let newStream;
-      try {
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: newFacing } },
-          audio: false
-        });
-      } catch (exactErr) {
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: newFacing },
-          audio: false
-        });
-      }
-
-      const newVideoTrack = newStream.getVideoTracks()[0];
-      if (newVideoTrack && screenPeerConnectionRef.current) {
-        const senders = screenPeerConnectionRef.current.getSenders();
-        const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
-        if (videoSender) {
-          await videoSender.replaceTrack(newVideoTrack);
-        }
-
-        // Stop old video track
-        const oldVideoTrack = screenStreamRef.current.getVideoTracks()[0];
-        if (oldVideoTrack) oldVideoTrack.stop();
-
-        // Combine new video track with existing audio tracks
-        const audioTracks = screenStreamRef.current.getAudioTracks();
-        const updatedStream = new MediaStream([newVideoTrack, ...audioTracks]);
-
-        screenStreamRef.current = updatedStream;
-        setScreenLocalStream(updatedStream);
-        setCurrentFacingMode(newFacing);
-        currentFacingModeRef.current = newFacing;
-        showToast(`Switched to ${newFacing === 'user' ? 'front' : 'rear'} camera`, 'info');
-      }
-    } catch (err) {
-      console.warn('Failed to switch camera:', err);
-      showToast('Could not switch camera', 'error');
     }
   };
 
@@ -1166,10 +1128,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           screenIceQueueRef.current = [];
         }
 
-        const answer = await pc.createAnswer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true
-        });
+        const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
         socket.emit('screenshare:answer', {
@@ -1177,7 +1136,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
           fromUserId: userId,
           answer
         });
-        showToast(`${fromUserName} started sharing screen${hasAudio ? ' (with audio)' : ''}`, 'info');
+        showToast(`${fromUserName} is sharing screen${hasAudio ? ' (with audio)' : ''}`, 'info');
       } catch (err) {
         console.error('[ScreenShare] Error answering screen share:', err);
         stopScreenShare();
@@ -1287,12 +1246,18 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
   useEffect(() => {
     let isMounted = true;
 
+    const withTimeout = (promise, ms = 4000) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Auth lookup timed out')), ms))
+      ]);
+
     const init = async () => {
       try {
         // In Dual Simulator mode, use the explicit initialUserId
         if (initialUserId) {
           try {
-            const user = await api.getMe(initialUserId);
+            const user = await withTimeout(api.getMe(initialUserId), 4000);
             if (user && isMounted) {
               await selectUser(user, false);
               return;
@@ -1318,7 +1283,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         const targetId = savedUserId || savedAccount?.id;
         if (targetId) {
           try {
-            const user = await api.getMe(targetId, savedAccount);
+            const user = await withTimeout(api.getMe(targetId, savedAccount), 4000);
             if (user && isMounted) {
               console.log('[Auth] Restored saved session for:', user.name, `@${user.username}`);
               await selectUser(user, true);

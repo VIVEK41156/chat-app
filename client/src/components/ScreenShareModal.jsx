@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../context/ChatContext';
 import {
-  MonitorUp,
   MonitorOff,
   Maximize2,
-  Minimize2,
   Volume2,
   VolumeX,
   X,
@@ -14,7 +12,8 @@ import {
   ExternalLink,
   Sparkles,
   Loader2,
-  MessageSquare
+  MessageSquare,
+  Volume1
 } from 'lucide-react';
 
 export const ScreenShareModal = () => {
@@ -32,6 +31,7 @@ export const ScreenShareModal = () => {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [audioAutoplayBlocked, setAudioAutoplayBlocked] = useState(false);
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -58,7 +58,7 @@ export const ScreenShareModal = () => {
       
       const playVideo = () => {
         videoEl.play().catch((err) => {
-          console.warn('[ScreenShareModal] Video play error:', err);
+          console.warn('[ScreenShareModal] Video play catch:', err);
         });
       };
       playVideo();
@@ -69,15 +69,23 @@ export const ScreenShareModal = () => {
           audioEl.srcObject = currentStream;
         }
         audioEl.volume = isScreenAudioMuted ? 0 : screenAudioVolume;
-        audioEl.play().catch((err) => {
-          console.warn('[ScreenShareModal] Audio auto-play catch (will play on tap):', err);
-        });
+        
+        audioEl.play()
+          .then(() => {
+            setAudioAutoplayBlocked(false);
+          })
+          .catch((err) => {
+            console.warn('[ScreenShareModal] Audio auto-play policy catch (requires user gesture):', err);
+            if (activeScreenShare?.hasAudio) {
+              setAudioAutoplayBlocked(true);
+            }
+          });
       }
     } else {
       videoEl.srcObject = null;
       if (audioEl) audioEl.srcObject = null;
     }
-  }, [currentStream, isSharing, isReceiving, isScreenAudioMuted, screenAudioVolume, isActive]);
+  }, [currentStream, isSharing, isReceiving, isScreenAudioMuted, screenAudioVolume, isActive, activeScreenShare?.hasAudio]);
 
   // Sync audio volume changes
   useEffect(() => {
@@ -85,6 +93,16 @@ export const ScreenShareModal = () => {
       audioRef.current.volume = isScreenAudioMuted ? 0 : screenAudioVolume;
     }
   }, [screenAudioVolume, isScreenAudioMuted, isSharing]);
+
+  const handleUnblockAudio = () => {
+    if (audioRef.current && !isSharing) {
+      audioRef.current.play()
+        .then(() => {
+          setAudioAutoplayBlocked(false);
+        })
+        .catch((e) => console.warn('Unblock audio error:', e));
+    }
+  };
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -127,7 +145,7 @@ export const ScreenShareModal = () => {
           ? 'fixed z-50 bottom-20 right-3 sm:bottom-24 sm:right-6 w-56 sm:w-80 aspect-video rounded-2xl shadow-2xl border-2 border-[#00a884] bg-[#111b21] overflow-hidden flex flex-col animate-fade-in select-none group'
           : isFullscreen
           ? 'fixed inset-0 z-50 w-screen h-screen bg-black flex flex-col justify-between select-none'
-          : 'fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-2 sm:p-6 select-none'
+          : 'fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-1.5 sm:p-6 select-none'
       }
     >
       {/* Hidden Audio Receiver Element - Always mounted */}
@@ -139,7 +157,7 @@ export const ScreenShareModal = () => {
             ? 'relative w-full h-full flex flex-col bg-[#111b21] overflow-hidden'
             : isFullscreen
             ? 'relative w-full h-full flex flex-col bg-[#111b21]'
-            : 'relative w-full max-w-5xl h-[85vh] max-h-[800px] flex flex-col bg-[#111b21] border border-[#2a3942] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden'
+            : 'relative w-full max-w-5xl h-[92vh] sm:h-[85vh] max-h-[820px] flex flex-col bg-[#111b21] border border-[#2a3942] rounded-xl sm:rounded-3xl shadow-2xl overflow-hidden'
         }
       >
         {/* Minimized Mini Top Header */}
@@ -193,17 +211,17 @@ export const ScreenShareModal = () => {
 
         {/* Maximized Top Screen Share Header */}
         {!isMinimized && (
-          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 bg-[#202c33] border-b border-[#2a3942] z-10 flex-shrink-0">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div className="w-8 h-8 rounded-full bg-[#00a884]/20 text-[#00a884] flex items-center justify-center flex-shrink-0">
                 <Tv size={18} />
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="text-xs sm:text-sm font-bold text-[#e9edef] truncate">
+                  <span className="text-xs sm:text-sm font-bold text-[#e9edef] truncate max-w-[120px] xs:max-w-[200px] sm:max-w-[320px]">
                     {isSharing
                       ? `Sharing screen with ${activeScreenShare?.peerName}`
-                      : `${activeScreenShare?.peerName}'s Screen`}
+                      : `${activeScreenShare?.peerName}'s Live Screen`}
                   </span>
                   <span className="flex items-center gap-1 text-[10px] bg-[#00a884]/20 text-[#00a884] px-2 py-0.5 rounded-full font-semibold border border-[#00a884]/30 flex-shrink-0">
                     <Radio size={10} className="animate-pulse" /> LIVE
@@ -212,7 +230,7 @@ export const ScreenShareModal = () => {
                 <div className="flex items-center gap-2 text-[11px] text-[#8696a0]">
                   {activeScreenShare?.hasAudio ? (
                     <span className="flex items-center gap-1 text-[#25D366]">
-                      <Music size={12} /> System & Video Audio Active
+                      <Music size={12} /> System Audio Active
                     </span>
                   ) : (
                     <span>Real-time Screen Stream</span>
@@ -229,11 +247,12 @@ export const ScreenShareModal = () => {
                 title="Pop-up view: Continue chatting while viewing stream"
               >
                 <MessageSquare size={15} />
-                <span>Chat / Pop-up</span>
+                <span className="hidden xs:inline">Chat / Pop-up</span>
+                <span className="xs:hidden">Chat</span>
               </button>
 
               {!isSharing && (
-                <div className="hidden xs:flex items-center gap-1.5 bg-[#111b21] px-2.5 py-1 rounded-full border border-[#2a3942]">
+                <div className="hidden sm:flex items-center gap-1.5 bg-[#111b21] px-2.5 py-1 rounded-full border border-[#2a3942]">
                   <button
                     onClick={toggleScreenAudioMute}
                     className="text-[#8696a0] hover:text-[#00a884] transition"
@@ -259,8 +278,8 @@ export const ScreenShareModal = () => {
 
               <button
                 onClick={togglePiP}
-                className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden sm:flex items-center justify-center"
-                title="Browser Picture-in-Picture"
+                className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#e9edef] hover:bg-[#2a3942] transition hidden md:flex items-center justify-center"
+                title="Picture-in-Picture"
               >
                 <ExternalLink size={16} />
               </button>
@@ -275,17 +294,17 @@ export const ScreenShareModal = () => {
 
               <button
                 onClick={stopScreenShare}
-                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition transform active:scale-95"
+                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition transform active:scale-95"
                 title="Stop Sharing"
               >
                 <MonitorOff size={14} />
-                <span className="hidden xs:inline">{isSharing ? 'Stop' : 'Leave'}</span>
+                <span>{isSharing ? 'Stop' : 'Leave'}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Center Main Screen Video Viewport - Permanently Mounted */}
+        {/* Center Main Screen Video Viewport */}
         <div
           className={`relative flex-1 bg-black flex items-center justify-center overflow-hidden ${
             isMinimized ? 'cursor-pointer' : ''
@@ -293,8 +312,8 @@ export const ScreenShareModal = () => {
           onClick={() => {
             if (isMinimized) {
               setIsMinimized(false);
-            } else if (audioRef.current && !isSharing) {
-              audioRef.current.play().catch(() => {});
+            } else {
+              handleUnblockAudio();
             }
           }}
         >
@@ -302,12 +321,30 @@ export const ScreenShareModal = () => {
             ref={videoRef}
             autoPlay
             playsInline
+            webkit-playsinline="true"
             muted={true}
             onLoadedMetadata={(e) => {
               e.currentTarget.play().catch(() => {});
             }}
-            className="w-full h-full object-contain"
+            onCanPlay={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
+            className="w-full h-full object-contain pointer-events-none"
           />
+
+          {/* Audio Tap to Enable Alert on Mobile */}
+          {!isMinimized && isReceiving && audioAutoplayBlocked && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnblockAudio();
+              }}
+              className="absolute top-4 inset-x-4 sm:inset-x-auto sm:right-4 z-30 bg-[#00a884] hover:bg-[#008f6f] text-white px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer border border-white/20 animate-bounce"
+            >
+              <Volume1 size={18} />
+              <span>Tap here to enable live screen sound</span>
+            </div>
+          )}
 
           {/* Quick Click-to-Expand Hint for Minimized Mode */}
           {isMinimized && (
@@ -335,7 +372,7 @@ export const ScreenShareModal = () => {
           )}
 
           {/* Receiver Audio Playback Badge */}
-          {!isMinimized && isReceiving && activeScreenShare?.hasAudio && (
+          {!isMinimized && isReceiving && activeScreenShare?.hasAudio && !audioAutoplayBlocked && (
             <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-md border border-[#00a884]/30 px-3 py-1.5 rounded-xl text-xs text-[#00a884] flex items-center gap-2 shadow z-10">
               <Music size={14} className="animate-bounce" />
               <span>Sound is playing through your speakers</span>

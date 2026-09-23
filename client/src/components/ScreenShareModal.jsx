@@ -145,7 +145,7 @@ export const ScreenShareModal = () => {
           ? 'fixed z-50 bottom-20 right-3 sm:bottom-24 sm:right-6 w-56 sm:w-80 aspect-video rounded-2xl shadow-2xl border-2 border-[#00a884] bg-[#111b21] overflow-hidden flex flex-col animate-fade-in select-none group'
           : isFullscreen
           ? 'fixed inset-0 z-50 w-screen h-screen bg-black flex flex-col justify-between select-none'
-          : 'fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-1.5 sm:p-6 select-none'
+          : 'fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-0 sm:p-6 select-none'
       }
     >
       {/* Hidden Audio Receiver Element - Always mounted */}
@@ -157,7 +157,7 @@ export const ScreenShareModal = () => {
             ? 'relative w-full h-full flex flex-col bg-[#111b21] overflow-hidden'
             : isFullscreen
             ? 'relative w-full h-full flex flex-col bg-[#111b21]'
-            : 'relative w-full max-w-5xl h-[92vh] sm:h-[85vh] max-h-[820px] flex flex-col bg-[#111b21] border border-[#2a3942] rounded-xl sm:rounded-3xl shadow-2xl overflow-hidden'
+            : 'relative w-full max-w-5xl h-[100dvh] sm:h-[85vh] max-h-[820px] flex flex-col bg-[#111b21] border-0 sm:border border-[#2a3942] rounded-none sm:rounded-3xl shadow-2xl overflow-hidden'
         }
       >
         {/* Minimized Mini Top Header */}

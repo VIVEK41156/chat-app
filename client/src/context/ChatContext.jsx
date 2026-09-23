@@ -1804,9 +1804,7 @@ export const ChatProvider = ({ children, initialUserId = null }) => {
         screenAudioVolume,
         setScreenAudioVolume,
         isScreenAudioMuted,
-        toggleScreenAudioMute,
-        flipCamera,
-        currentFacingMode
+        toggleScreenAudioMute
       }}
     >
       {children}

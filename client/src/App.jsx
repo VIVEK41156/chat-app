@@ -137,7 +137,7 @@ const MainLayout = ({ onToggleSimulator }) => {
             >
               <MessageSquare size={18} />
               <span className="text-[10px] font-medium">Chats</span>
-              {summary.unreadMessagesCount > 0 && (
+              {summary?.unreadMessagesCount > 0 && (
                 <span className="absolute top-0 right-2 bg-[#25D366] text-[#111b21] font-bold text-[9px] px-1.5 py-0.1 rounded-full">
                   {summary.unreadMessagesCount}
                 </span>
@@ -165,7 +165,7 @@ const MainLayout = ({ onToggleSimulator }) => {
             >
               <Users size={18} />
               <span className="text-[10px] font-medium">Friends</span>
-              {summary.friendsCount > 0 && (
+              {summary?.friendsCount > 0 && (
                 <span className="text-[9px] text-[#8696a0]">({summary.friendsCount})</span>
               )}
             </button>
@@ -178,7 +178,7 @@ const MainLayout = ({ onToggleSimulator }) => {
             >
               <UserPlus size={18} />
               <span className="text-[10px] font-medium">Requests</span>
-              {incomingRequests.length > 0 && (
+              {incomingRequests?.length > 0 && (
                 <span className="absolute top-0 right-2 bg-[#00a884] text-white font-bold text-[9px] px-1.5 py-0.1 rounded-full animate-bounce">
                   {incomingRequests.length}
                 </span>

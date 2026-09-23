@@ -80,10 +80,10 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
     }
   };
 
-  const filteredFriends = friends.filter(
+  const filteredFriends = (friends || []).filter(
     (f) =>
-      f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.username.toLowerCase().includes(searchQuery.toLowerCase())
+      (f?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (f?.username || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const friendsStatuses = statusFeed?.friendsStatuses || [];
@@ -179,7 +179,7 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
         >
           <MessageSquare size={15} />
           <span className="hidden sm:inline">Chats</span>
-          {summary.unreadMessagesCount > 0 && (
+          {summary?.unreadMessagesCount > 0 && (
             <span className="bg-[#25D366] text-[#111b21] font-bold text-[10px] px-1.5 py-0.2 rounded-full">
               {summary.unreadMessagesCount}
             </span>
@@ -213,7 +213,7 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
         >
           <Users size={15} />
           <span className="hidden sm:inline">Friends</span>
-          {summary.friendsCount > 0 && (
+          {summary?.friendsCount > 0 && (
             <span className="text-[10px] text-[#8696a0]">({summary.friendsCount})</span>
           )}
         </button>
@@ -229,7 +229,7 @@ export const Sidebar = ({ onOpenAuthModal, onOpenProfileModal, isSplitView = fal
         >
           <UserPlus size={15} />
           <span className="hidden sm:inline">Requests</span>
-          {incomingRequests.length > 0 && (
+          {incomingRequests?.length > 0 && (
             <span className="bg-[#00a884] text-white font-bold text-[10px] px-1.5 py-0.2 rounded-full animate-bounce">
               {incomingRequests.length}
             </span>
